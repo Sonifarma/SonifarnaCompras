@@ -1,0 +1,30 @@
+SONIFARMA — INTELIGÊNCIA DE COMPRAS V1
+
+1. Instale Python 3.12 no Windows (use o comando py).
+2. Extraia todo o ZIP diretamente em C:\Sonifarmacompras.
+3. Execute iniciar.bat e aguarde a inicialização.
+4. Abra http://127.0.0.1:8766 no navegador do servidor.
+5. A base de outubro de 2026 é carregada na primeira execução a partir da planilha de comparativo anterior.
+6. Para novos processos, clique em + Processo e importe a necessidade e as cotações.
+7. Para vincular manualmente um produto, use Buscar cotação. Para selecionar fornecedor, use a caixa na linha.
+8. O PDF gerado é um resumo PRELIMINAR das escolhas; não é um pedido definitivo.
+
+LIMITAÇÕES IMPORTANTES DA V1:
+- A base de cotações pré-carregada usa a planilha comparativa anterior e requer conferência das extrações.
+- Importação PDF é conservadora e depende do layout; arquivos complexos podem importar zero itens.
+- Ainda não há reconhecimento confiável de imagem/JPEG nem OCR.
+- Sugestões por nome não comprovam equivalência farmacotécnica.
+- A seleção não é automática e não há cálculo confiável de economia total sem unidade/quantidade válidas.
+- A partir da V1.7 há login local com troca obrigatória da senha inicial; confira ATUALIZAR.md.
+- Não há envio automático de pedidos.
+- Banco de dados: compras.sqlite3, na pasta do sistema. Faça backup desse arquivo.
+
+V1.2: painel com campeões de menor custo somente entre equivalências vinculadas manualmente e unidades compatíveis. Estimativas não incluem frete/impostos e exigem confirmação da unidade do custo anterior. O banco compras.sqlite3 anterior pode ser mantido.
+
+V1.3: rascunhos por fornecedor em PDF/XLSX, retirada de escolhas e histórico de auditoria. Não envia pedidos. Itens sem unidade compatível não entram no total estimado. Preserve compras.sqlite3 na atualização.
+
+V1.4: interface responsiva em linhas expansíveis; botão de campeões automáticos APENAS entre vínculos aprovados com unidade base igual. Escolhas manuais preservadas. Não aprova equivalências automaticamente.
+
+V1.5: selecao automatica ao abrir/importar, sem botao; escolhas anteriores preservadas. Nome exato e unidade igual sao pre-selecao a conferir.
+
+V1.7: login admin, troca obrigatória da senha inicial, sessões protegidas e atualização com backup. Consulte ATUALIZAR.md.
