@@ -1,5 +1,7 @@
 """Atualiza o código a partir do ZIP, preservando dados e criando backup."""
 import argparse
+import hashlib
+import json
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 import shutil
@@ -21,7 +23,7 @@ def update(package, destination):
         allowed_files = {'app.py', 'auth.py', 'atualizar.py', 'iniciar.bat', 'requirements.txt', 'requirements-dev.txt', 'README.md', 'LEIA-ME.txt', 'ATUALIZAR.md', 'AGENTS.md', '.gitignore', 'atualizar-github.ps1'}
         for entry in archive.infolist():
             parts = PurePosixPath(entry.filename).parts
-            if not parts or parts[0] not in {'Sonifarmacompras', 'SonifarnaCompras-main', 'SonifarnaCompras-v1.7'} or '..' in parts or '\\' in entry.filename:
+            if not parts or parts[0] not in {'Sonifarmacompras', 'SonifarnaCompras-main', 'SonifarnaCompras-v1.7', 'SonifarnaCompras-v1.8'} or '..' in parts or '\\' in entry.filename:
                 raise SystemExit('Estrutura de pacote inválida.')
             relative = Path(*parts[1:])
             if entry.is_dir() or not relative.parts:
@@ -35,6 +37,12 @@ def update(package, destination):
             selected.append(relative)
         if not all((root / name).is_file() for name in ['app.py', 'auth.py', 'templates/login.html']):
             raise SystemExit('Pacote incompleto. Nada foi alterado.')
+        for relative in selected:
+            if relative.suffix == '.py':
+                try:
+                    compile((root / relative).read_bytes(), str(relative), 'exec')
+                except (SyntaxError, ValueError) as error:
+                    raise SystemExit(f'Python inválido em {relative}: {error}. Nada foi alterado.')
         database = destination / 'compras.sqlite3'
         if not database.is_file():
             raise SystemExit('Banco compras.sqlite3 não encontrado no destino. Confira a pasta da instalação existente.')
@@ -54,10 +62,30 @@ def update(package, destination):
             source.backup(target)
             if target.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
                 raise SystemExit('Falha ao verificar backup. Atualização cancelada.')
-        for relative in selected:
-            target = destination / relative
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(root / relative, target)
+        manifest = {str(path.relative_to(backup)): hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in backup.rglob('*') if path.is_file()}
+        (backup / 'manifesto-sha256.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
+        attempted = []
+        try:
+            for relative in selected:
+                target = destination / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                attempted.append(relative)
+                shutil.copy2(root / relative, target)
+        except OSError as error:
+            failures = []
+            for relative in reversed(attempted):
+                target = destination / relative
+                saved = backup / relative
+                try:
+                    if saved.is_file():
+                        shutil.copy2(saved, target)
+                    else:
+                        target.unlink(missing_ok=True)
+                except OSError:
+                    failures.append(str(relative))
+            detail = ('Falha ao restaurar: ' + ', '.join(failures)) if failures else 'Código anterior restaurado.'
+            raise SystemExit(f'Falha ao atualizar: {error}. {detail} Banco preservado. Backup: {backup}')
         print('Atualização concluída. Banco e usuários preservados.')
         print('Backup:', backup)
         print('Execute iniciar.bat para atualizar as dependências e iniciar.')

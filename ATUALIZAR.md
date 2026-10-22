@@ -1,32 +1,45 @@
-# Atualizar para V1.7 no Windows
+# Atualizar para V1.8 — padrão operacional do CRM
 
-Feche a janela do Sonifarma Compras antes de atualizar. Execute o bloco inteiro no PowerShell. É necessário Git para Windows; se o repositório for privado, use sua conta autorizada quando o Git solicitar login. Ajuste o destino se necessário.
+O fluxo segue a operação documentada em SonifarmaCRM/integracao/painel/OPERACAO_LOCAL.md: baixar código em outra pasta, parar a aplicação, fazer backup verificado, atualizar somente código e reiniciar para validar. O Compras continua com seu próprio banco, porta 8766 e login; os controles de processo e supervisão automática do CRM não foram copiados.
+
+Não é necessário Git instalado no Windows.
+
+1. Abra https://github.com/Sonifarma/SonifarnaCompras com sua conta autorizada.
+2. Clique **Code → Download ZIP** para baixar o código atual.
+3. Feche a janela que executa o Sonifarma Compras. O atualizador cancela se a porta 8766 continuar ocupada, sem encerrar processos automaticamente.
+4. Execute o bloco inteiro abaixo no PowerShell. Selecione o ZIP baixado quando abrir a janela:
 
 ```powershell
 & {
     $ErrorActionPreference = 'Stop'
-    if (!(Get-Command git -ErrorAction SilentlyContinue)) {
-        throw 'Instale o Git para Windows e abra novamente o PowerShell: https://git-scm.com/download/win'
-    }
     $destino = 'C:\Sonifarmacompras'
-    if (!(Test-Path -LiteralPath (Join-Path $destino 'compras.sqlite3'))) {
-        throw "Banco não encontrado em $destino. Corrija a pasta de destino antes de atualizar."
+    if (!(Test-Path -LiteralPath "$destino\compras.sqlite3")) {
+        throw 'Banco não encontrado. Confira a pasta em $destino.'
     }
+    Add-Type -AssemblyName System.Windows.Forms
+    $seletor = New-Object System.Windows.Forms.OpenFileDialog
+    $seletor.Title = 'Selecione o ZIP do SonifarnaCompras baixado do GitHub'
+    $seletor.Filter = 'Arquivo ZIP (*.zip)|*.zip'
+    if ($seletor.ShowDialog() -ne 'OK') { return }
+    $pacote = $seletor.FileName
     $temporario = Join-Path $env:TEMP ('SonifarmaCompras-' + [guid]::NewGuid())
-    git clone --depth 1 --branch main https://github.com/Sonifarma/SonifarnaCompras.git $temporario
-    if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar do GitHub. Confira a conexão e o acesso à conta.' }
-    py "$temporario\atualizar.py" --origem "$temporario" --destino "$destino"
+    Expand-Archive -LiteralPath $pacote -DestinationPath $temporario
+    $pastas = @(Get-ChildItem -LiteralPath $temporario -Directory)
+    if ($pastas.Count -ne 1) { throw 'Estrutura do ZIP inválida.' }
+    $atualizador = Join-Path $pastas[0].FullName 'atualizar.py'
+    if (!(Test-Path -LiteralPath $atualizador)) { throw 'Atualizador não encontrado no pacote.' }
+    py "$atualizador" --pacote "$pacote" --destino "$destino"
     if ($LASTEXITCODE -ne 0) { throw 'Atualização interrompida. Confira a mensagem acima.' }
     & "$destino\iniciar.bat"
 }
 ```
 
-Também é possível usar o ZIP baixado pelo GitHub em Code → Download ZIP: extraia em uma pasta temporária e execute `py atualizar.py --pacote CAMINHO_DO_ZIP --destino C:\Sonifarmacompras` a partir da pasta extraída. O atualizador aceita tanto o ZIP da entrega quanto o ZIP da branch main do GitHub.
+Não extraia o ZIP sobre a instalação existente. Ele deve ficar em uma pasta temporária. O atualizador valida a sintaxe dos arquivos Python sem executá-los, cria backup do código substituído e do banco com verificação de integridade, grava manifesto SHA-256 e preserva compras.sqlite3, contas, senhas, configurações locais e amostras. Uma falha de cópia aciona tentativa de restauração do código anterior; se falhar também, o caminho do backup e os arquivos pendentes são informados e o painel não é iniciado. A operação não é transacional contra queda de energia.
 
-O atualizador verifica o pacote, recusa atualização com a porta 8766 em uso, cria backup do código substituído e do banco (com verificação de integridade), e preserva compras.sqlite3, usuários/senhas, dados locais e amostras. Não extraia pacotes diretamente sobre a instalação existente. O GitHub contém somente código, sem banco nem planilhas comerciais. O caminho do backup é mostrado no terminal. Em caso de falha durante a cópia, mantenha o sistema parado e restaure os arquivos pelo backup antes de iniciar.
+Após iniciar, entre no painel, confira o processo e os insumos e use Ctrl+F5 para atualizar o visual. Primeiro acesso: admin / senha inicial 123456, com troca obrigatória para senha de 8 a 128 caracteres. Se a senha já foi alterada, continua a mesma.
 
-Para instalação nova, baixe o código em uma pasta nova e execute iniciar.bat. Sem banco ou planilhas locais, um processo vazio é criado automaticamente.
+Depois desta atualização, também é possível abrir PowerShell na pasta da instalação e executar `./atualizar-github.ps1`; ele solicita o ZIP, atualiza e inicia o sistema. Não altere a política de execução global caso a empresa bloqueie scripts: use o bloco acima ou peça a liberação/assinatura ao administrador.
 
-Primeiro acesso: usuário **admin**, senha inicial **123456**. O primeiro acesso exige uma senha nova de 8 a 128 caracteres. Depois da troca, entre novamente. Atualizações seguintes preservam a senha alterada. Use “Alterar senha” ou “Sair” no menu.
+Para instalação nova, extraia o ZIP em uma pasta nova e execute iniciar.bat. Sem banco ou planilhas locais, um processo vazio é criado.
 
-As sessões expiram após 12 horas. Trocar a senha encerra todas as sessões desse usuário. Cinco erros de senha bloqueiam temporariamente o usuário por 5 minutos. Senhas são armazenadas com PBKDF2-SHA256 e salt aleatório, sem texto puro. A autenticação protege leitura, alterações e exportações da API. Para instalação em HTTPS, configure SONIFARMA_COOKIE_SECURE=1; o modo padrão continua restrito ao computador local em 127.0.0.1.
+As sessões expiram em 12 horas; trocar a senha encerra todas as sessões do usuário. Cinco erros de senha bloqueiam o usuário por cinco minutos. O modo padrão permanece em 127.0.0.1; HTTPS exige SONIFARMA_COOKIE_SECURE=1.

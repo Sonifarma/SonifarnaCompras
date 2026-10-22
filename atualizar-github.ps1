@@ -1,14 +1,25 @@
+param(
+    [string]$Pacote = '',
+    [string]$Destino = 'C:\Sonifarmacompras'
+)
 $ErrorActionPreference = 'Stop'
-if (!(Get-Command git -ErrorAction SilentlyContinue)) {
-    throw 'Instale o Git para Windows e abra novamente o PowerShell: https://git-scm.com/download/win'
+if (!(Test-Path -LiteralPath (Join-Path $Destino 'compras.sqlite3'))) {
+    throw "Banco não encontrado em $Destino. Corrija a pasta de destino."
 }
-$destino = 'C:\Sonifarmacompras'
-if (!(Test-Path -LiteralPath (Join-Path $destino 'compras.sqlite3'))) {
-    throw "Banco não encontrado em $destino. Corrija a pasta de destino antes de atualizar."
+if (!$Pacote) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $seletor = New-Object System.Windows.Forms.OpenFileDialog
+    $seletor.Title = 'Selecione o ZIP baixado do Sonifarma/SonifarnaCompras no GitHub'
+    $seletor.Filter = 'Arquivo ZIP (*.zip)|*.zip'
+    if ($seletor.ShowDialog() -ne 'OK') { Write-Host 'Atualização cancelada.'; return }
+    $Pacote = $seletor.FileName
 }
 $temporario = Join-Path $env:TEMP ('SonifarmaCompras-' + [guid]::NewGuid())
-git clone --depth 1 --branch main https://github.com/Sonifarma/SonifarnaCompras.git $temporario
-if ($LASTEXITCODE -ne 0) { throw 'Falha ao baixar do GitHub. Confira a conexão e o acesso à conta.' }
-py "$temporario\atualizar.py" --origem "$temporario" --destino "$destino"
+Expand-Archive -LiteralPath $Pacote -DestinationPath $temporario
+$pastas = @(Get-ChildItem -LiteralPath $temporario -Directory)
+if ($pastas.Count -ne 1) { throw 'Estrutura do ZIP inválida.' }
+$atualizador = Join-Path $pastas[0].FullName 'atualizar.py'
+if (!(Test-Path -LiteralPath $atualizador)) { throw 'O pacote não contém atualizar.py.' }
+py "$atualizador" --pacote "$Pacote" --destino "$Destino"
 if ($LASTEXITCODE -ne 0) { throw 'Atualização interrompida. Confira a mensagem acima.' }
-& "$destino\iniciar.bat"
+& "$Destino\iniciar.bat"

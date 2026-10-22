@@ -1,6 +1,6 @@
 # Sonifarma — Inteligência de Compras
 
-Aplicação FastAPI + SQLite para importar necessidades/cotações, comparar fornecedores e gerar rascunhos em PDF/XLSX. A versão 1.7 segue a identidade visual do painel SonifarmaCRM: logotipo, turquesa #00a6ad, botões #00777d, laranja #ff6900, cartões e navegação responsiva.
+Aplicação FastAPI + SQLite para importar necessidades/cotações, comparar fornecedores e gerar rascunhos em PDF/XLSX. A versão 1.8 segue a identidade visual do painel SonifarmaCRM: logotipo, turquesa #00a6ad, botões #00777d, laranja #ff6900, cartões e navegação responsiva.
 
 ## Executar
 
@@ -44,4 +44,6 @@ Os testes usam banco temporário e cobrem remoção persistente, preservação d
 
 Consulte [os comandos de atualização para Windows](ATUALIZAR.md). Nunca sobrescreva o banco ao extrair um ZIP sobre uma instalação existente.
 
-Versão 1.7 publicada em Sonifarma/SonifarnaCompras. O código não contém bancos nem planilhas comerciais.
+Versão 1.8 publicada em Sonifarma/SonifarnaCompras. O código não contém bancos nem planilhas comerciais.
+
+V1.8: atualização por ZIP do GitHub sem Git instalado, seguindo o fluxo operacional do CRM; validação de sintaxe, manifesto de backup e restauração do código em caso de falha de cópia.

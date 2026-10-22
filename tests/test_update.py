@@ -1,4 +1,6 @@
 import hashlib
+import json
+import shutil
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -26,7 +28,7 @@ class UpdateWorkflow(unittest.TestCase):
         path = self.root / 'package.zip'
         with zipfile.ZipFile(path, 'w') as archive:
             for name in ['app.py', 'auth.py', 'templates/login.html']:
-                archive.writestr(root + '/' + name, 'new version')
+                archive.writestr(root + '/' + name, '# new version')
             archive.writestr(root + '/compras.sqlite3', 'must never overwrite database')
         return path
 
@@ -34,7 +36,7 @@ class UpdateWorkflow(unittest.TestCase):
         with patch('socket.socket.connect_ex', return_value=1):
             update(self.package('SonifarnaCompras-main'), self.destination)
         self.assertEqual(hashlib.sha256(self.database.read_bytes()).digest(), self.original)
-        self.assertEqual((self.destination / 'app.py').read_text(), 'new version')
+        self.assertEqual((self.destination / 'app.py').read_text(), '# new version')
         backup = next(self.root.glob('SonifarmaCompras-backup-*'))
         self.assertEqual((backup / 'app.py').read_text(), 'previous version')
         with sqlite3.connect(backup / 'compras.sqlite3') as c:
@@ -53,3 +55,36 @@ class UpdateWorkflow(unittest.TestCase):
         with patch('socket.socket.connect_ex', return_value=1), self.assertRaises(SystemExit):
             update(path, self.destination)
         self.assertEqual((self.destination / 'app.py').read_text(), 'previous version')
+
+    def test_invalid_python_blocks_update_before_backup(self):
+        path = self.root / 'invalid.zip'
+        with zipfile.ZipFile(path, 'w') as archive:
+            archive.writestr('SonifarnaCompras-main/app.py', 'def invalid(')
+            archive.writestr('SonifarnaCompras-main/auth.py', '# valid')
+            archive.writestr('SonifarnaCompras-main/templates/login.html', '<html></html>')
+        with patch('socket.socket.connect_ex', return_value=1), self.assertRaises(SystemExit):
+            update(path, self.destination)
+        self.assertEqual((self.destination / 'app.py').read_text(), 'previous version')
+        self.assertFalse(list(self.root.glob('SonifarmaCompras-backup-*')))
+
+    def test_copy_failure_restores_previous_code(self):
+        original_copy = shutil.copy2
+        failed = False
+
+        def fail_once(source, destination, *args, **kwargs):
+            nonlocal failed
+            if Path(destination) == self.destination / 'auth.py' and not failed:
+                failed = True
+                raise PermissionError('Simulated copy failure')
+            return original_copy(source, destination, *args, **kwargs)
+
+        with patch('socket.socket.connect_ex', return_value=1), patch('shutil.copy2', side_effect=fail_once), self.assertRaises(SystemExit) as result:
+            update(self.package('SonifarnaCompras-main'), self.destination)
+        self.assertIn('Código anterior restaurado', str(result.exception))
+        self.assertEqual((self.destination / 'app.py').read_text(), 'previous version')
+        self.assertFalse((self.destination / 'auth.py').exists())
+        self.assertEqual(hashlib.sha256(self.database.read_bytes()).digest(), self.original)
+        backup = next(self.root.glob('SonifarmaCompras-backup-*'))
+        manifest = json.loads((backup / 'manifesto-sha256.json').read_text())
+        for name, digest in manifest.items():
+            self.assertEqual(hashlib.sha256((backup / name).read_bytes()).hexdigest(), digest)

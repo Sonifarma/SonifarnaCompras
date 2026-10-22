@@ -9,7 +9,7 @@ import fitz
 from difflib import SequenceMatcher
 
 ROOT=Path(__file__).parent; DB=Path(os.environ.get('SONIFARMA_COMPRAS_DB', ROOT/'compras.sqlite3'))
-app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.7')
+app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.8')
 app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
 
 def db():

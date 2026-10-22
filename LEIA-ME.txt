@@ -28,3 +28,5 @@ V1.4: interface responsiva em linhas expansíveis; botão de campeões automáti
 V1.5: selecao automatica ao abrir/importar, sem botao; escolhas anteriores preservadas. Nome exato e unidade igual sao pre-selecao a conferir.
 
 V1.7: login admin, troca obrigatória da senha inicial, sessões protegidas e atualização com backup. Consulte ATUALIZAR.md.
+
+V1.8: atualização por ZIP do GitHub sem instalar Git, backup verificado e recuperação de código. Consulte ATUALIZAR.md.
