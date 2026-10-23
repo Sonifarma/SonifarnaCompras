@@ -20,10 +20,10 @@ def update(package, destination):
     with zipfile.ZipFile(package) as archive, tempfile.TemporaryDirectory() as staging:
         root = Path(staging)
         selected = []
-        allowed_files = {'app.py', 'auth.py', 'atualizar.py', 'iniciar.bat', 'requirements.txt', 'requirements-dev.txt', 'README.md', 'LEIA-ME.txt', 'ATUALIZAR.md', 'AGENTS.md', '.gitignore', 'atualizar-github.ps1'}
+        allowed_files = {'app.py', 'auth.py', 'procurement.py', 'atualizar.py', 'iniciar.bat', 'requirements.txt', 'requirements-dev.txt', 'README.md', 'LEIA-ME.txt', 'ATUALIZAR.md', 'AGENTS.md', '.gitignore', 'atualizar-github.ps1'}
         for entry in archive.infolist():
             parts = PurePosixPath(entry.filename).parts
-            if not parts or parts[0] not in {'Sonifarmacompras', 'SonifarnaCompras-main', 'SonifarnaCompras-v1.7', 'SonifarnaCompras-v1.8'} or '..' in parts or '\\' in entry.filename:
+            if not parts or parts[0] not in {'Sonifarmacompras', 'SonifarnaCompras-main', 'SonifarnaCompras-v1.7', 'SonifarnaCompras-v1.8', 'SonifarnaCompras-v1.9'} or '..' in parts or '\\' in entry.filename:
                 raise SystemExit('Estrutura de pacote inválida.')
             relative = Path(*parts[1:])
             if entry.is_dir() or not relative.parts:
@@ -43,6 +43,8 @@ def update(package, destination):
                     compile((root / relative).read_bytes(), str(relative), 'exec')
                 except (SyntaxError, ValueError) as error:
                     raise SystemExit(f'Python inválido em {relative}: {error}. Nada foi alterado.')
+        if b'from procurement import' in (root / 'app.py').read_bytes() and not (root / 'procurement.py').is_file():
+            raise SystemExit('Pacote incompleto: procurement.py ausente. Nada foi alterado.')
         database = destination / 'compras.sqlite3'
         if not database.is_file():
             raise SystemExit('Banco compras.sqlite3 não encontrado no destino. Confira a pasta da instalação existente.')

@@ -30,3 +30,5 @@ V1.5: selecao automatica ao abrir/importar, sem botao; escolhas anteriores prese
 V1.7: login admin, troca obrigatória da senha inicial, sessões protegidas e atualização com backup. Consulte ATUALIZAR.md.
 
 V1.8: atualização por ZIP do GitHub sem instalar Git, backup verificado e recuperação de código. Consulte ATUALIZAR.md.
+
+V1.9: regras de validade, gramas/milheiros, embalagem anterior e cestas por fornecedor. Complete os dados novos conforme ATUALIZAR.md.

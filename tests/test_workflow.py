@@ -28,6 +28,9 @@ class PurchaseWorkflow(unittest.TestCase):
         with compras.db() as c:
             self.need = c.execute('SELECT id FROM needs WHERE process_id=?', (self.pid,)).fetchone()[0]
             self.quote = c.execute('SELECT id FROM quotes WHERE process_id=?', (self.pid,)).fetchone()[0]
+            c.execute('UPDATE needs SET last_pack_qty=10,last_pack_unit=? WHERE id=?', ('G',self.need))
+            from procurement import today
+            c.execute('UPDATE quotes SET expiry=? WHERE id=?', (f'{today().year+3}-01-01',self.quote))
 
     def data(self):
         result = self.client.get(f'/api/data/{self.pid}')
