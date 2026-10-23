@@ -12,6 +12,12 @@ class BuyingRules(unittest.TestCase):
     def assess(self):
         return evaluate(self.need,self.quote,self.delivery)
 
+    def test_sao_paulo_date_without_system_timezone_database(self):
+        # Windows has no system IANA database; tzdata must supply these rules.
+        import os, subprocess, sys
+        check="from procurement import today; from zoneinfo import ZoneInfo; assert today().isoformat(); assert ZoneInfo('America/Sao_Paulo').key == 'America/Sao_Paulo'"
+        subprocess.run([sys.executable,'-c',check],env={**os.environ,'PYTHONTZPATH':''},check=True,capture_output=True)
+
     def test_kg_converts_to_grams(self):
         a=self.assess()
         self.assertTrue(a['eligible'])

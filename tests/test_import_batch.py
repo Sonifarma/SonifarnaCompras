@@ -32,6 +32,20 @@ class BatchImports(unittest.TestCase):
     def count(self,table):
         with compras.db() as c:return c.execute('SELECT COUNT(*) FROM '+table+' WHERE process_id=?',(self.pid,)).fetchone()[0]
 
+    def test_saved_needs_survive_failed_refresh_and_retry(self):
+        from zoneinfo import ZoneInfoNotFoundError
+        key=str(uuid.uuid4())
+        raw=workbook_bytes([['Código','Produto','Fornecedor','Quantidade','Unidade','Custo']]+[[str(i),'Insumo '+str(i),'Anterior',100,'G',1] for i in range(122)])
+        def upload():
+            return self.client.post(f'/api/import/needs/{self.pid}',data={'keys':[key]},files=[('files',('outubro.xlsx',raw))])
+        with patch('procurement.ZoneInfo',side_effect=ZoneInfoNotFoundError('America/Sao_Paulo')):
+            self.assertEqual(upload().json()['imported'],122)
+            with self.assertRaises(ZoneInfoNotFoundError):
+                self.client.get(f'/api/data/{self.pid}')
+        self.assertEqual(self.client.get(f'/api/data/{self.pid}').json()['summary']['needs'],123)
+        self.assertEqual(upload().json()['imported'],0)
+        self.assertEqual(self.count('needs'),123)
+
     def test_needs_mixed_files_and_history(self):
         response=self.client.post(f'/api/import/needs/{self.pid}',files=[('files',('one.xlsx',needs_file('Primeiro'))),('files',('bad.xlsx',b'broken')),('files',('two.xlsx',needs_file('Segundo')))])
         self.assertEqual(response.status_code,200)

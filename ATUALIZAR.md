@@ -1,4 +1,4 @@
-# Atualização e controle — V1.13
+# Atualização e controle — V1.14
 
 O Compras agora usa o mesmo modelo de manutenção do SonifarmaCRM: controle com start/stop/restart/status/backup/verify/update, processo identificado por PID e caminho, resposta funcional verificada, ZIP de backup restaurado temporariamente e atualização restrita a uma lista explícita de arquivos de código.
 
@@ -135,3 +135,15 @@ Todo item lido por OCR fica sinalizado e bloqueado para seleção automática. V
 Arquivos de conteúdo idêntico e mesmo fornecedor no mesmo lote são ignorados após a primeira importação bem-sucedida, mesmo que tenham nomes diferentes. Fornecedores distintos podem usar arquivos iguais. Isso não é deduplicação global de todo o banco: reimportar manualmente em outro lote ainda acrescenta itens, conforme a versão anterior.
 
 Na validação isolada com os arquivos enviados, foram reconhecidos 383 itens de nove PDFs diferentes; o décimo PDF era uma cópia idêntica do I9 e foi ignorado no lote. Nenhum PDF, planilha comercial, banco ou informação de cliente foi incluído no GitHub. Testes automatizados usam documentos sintéticos. Também foram conferidos JPG por OCR, PDF digitalizado, XLS e o fluxo de revisão no navegador. Essa validação não substitui a conferência comercial e farmacotécnica pelo comprador.
+
+## Correção da atualização do painel após importar — V1.14
+
+Incluída a dependência `tzdata`, necessária no Windows para consultar `America/Sao_Paulo`. Sem a base de fusos, uma importação pode terminar e gravar seus registros, mas a atualização do comparativo falha ao calcular a data de entrega. O `iniciar.bat` passa a verificar a consulta ao fuso e instalar as dependências quando necessário.
+
+A interface distingue uma importação confirmada de uma falha posterior ao atualizar o painel. Os arquivos concluídos permanecem marcados e não são reenviados pela mesma fila. Erros de servidor mostram o código HTTP e indicam `compras_erros.log` para diagnóstico. Se os registros já aparecem como importados, atualize o programa e recarregue a página; não reimporte a planilha. Banco e senhas existentes são preservados.
+
+Atualização pelo PowerShell:
+
+```powershell
+& "C:\Sonifarmacompras\ATUALIZAR_SONIFARMA.bat"
+```

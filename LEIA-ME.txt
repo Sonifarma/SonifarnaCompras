@@ -40,3 +40,5 @@ V1.11: ATUALIZAR_SONIFARMA.bat baixa automaticamente do GitHub e segue o fluxo d
 V1.12: selecione varios arquivos de uma vez nas importacoes. Confira o fornecedor em cada cotacao e acompanhe o resultado individual na fila.
 
 V1.13: leitura dos layouts de fornecedores em PDF, JPG/JPEG/PNG por OCR e Excel XLS/XLSX. A primeira inicializacao instala dependencias adicionais. Confira os itens sinalizados em Revisar cotacoes importadas.
+
+V1.14: instala a base de fusos necessaria no Windows e distingue importacao salva de falha ao atualizar o painel. Nao reimporte arquivos ja concluidos; atualize e recarregue a pagina.
