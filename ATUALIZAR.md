@@ -1,24 +1,25 @@
-# Atualizar para V1.9 — padrão operacional do CRM
+# Atualização e controle — V1.10
 
-O fluxo segue a operação documentada em SonifarmaCRM/integracao/painel/OPERACAO_LOCAL.md: baixar código em outra pasta, parar a aplicação, fazer backup verificado, atualizar somente código e reiniciar para validar. O Compras continua com seu próprio banco, porta 8766 e login; os controles de processo e supervisão automática do CRM não foram copiados.
+O Compras agora usa o mesmo modelo de manutenção do SonifarmaCRM: controle com start/stop/restart/status/backup/verify/update, processo identificado por PID e caminho, resposta funcional verificada, ZIP de backup restaurado temporariamente e atualização restrita a uma lista explícita de arquivos de código.
 
-Não é necessário Git instalado no Windows.
+O Compras mantém seu banco, contas e porta 8766. Não usa o PostgreSQL, IP, certificados ou credenciais do CRM. Não foram adicionados supervisão automática nem agendamento. Não é necessário instalar Git.
 
-1. Abra https://github.com/Sonifarma/SonifarnaCompras com sua conta autorizada.
-2. Clique **Code → Download ZIP** para baixar o código atual.
-3. Feche a janela que executa o Sonifarma Compras. O atualizador cancela se a porta 8766 continuar ocupada, sem encerrar processos automaticamente.
-4. Execute o bloco inteiro abaixo no PowerShell. Selecione o ZIP baixado quando abrir a janela:
+## Primeira migração para este controle
+
+1. Baixe o código em https://github.com/Sonifarma/SonifarnaCompras, em Code → Download ZIP.
+2. Feche a janela antiga do Compras. Essa primeira instância não foi registrada pelo novo gerenciador e não será encerrada automaticamente.
+3. Cole o bloco inteiro no PowerShell e selecione o ZIP baixado. Ele usa o atualizador do pacote novo, preservando a instalação existente:
 
 ```powershell
 & {
     $ErrorActionPreference = 'Stop'
     $destino = 'C:\Sonifarmacompras'
     if (!(Test-Path -LiteralPath "$destino\compras.sqlite3")) {
-        throw 'Banco não encontrado. Confira a pasta em $destino.'
+        throw 'Banco não encontrado. Confira a pasta de instalação.'
     }
     Add-Type -AssemblyName System.Windows.Forms
     $seletor = New-Object System.Windows.Forms.OpenFileDialog
-    $seletor.Title = 'Selecione o ZIP do SonifarnaCompras baixado do GitHub'
+    $seletor.Title = 'Selecione o ZIP atualizado do Compras baixado do GitHub'
     $seletor.Filter = 'Arquivo ZIP (*.zip)|*.zip'
     if ($seletor.ShowDialog() -ne 'OK') { return }
     $pacote = $seletor.FileName
@@ -27,23 +28,63 @@ Não é necessário Git instalado no Windows.
     $pastas = @(Get-ChildItem -LiteralPath $temporario -Directory)
     if ($pastas.Count -ne 1) { throw 'Estrutura do ZIP inválida.' }
     $atualizador = Join-Path $pastas[0].FullName 'atualizar.py'
-    if (!(Test-Path -LiteralPath $atualizador)) { throw 'Atualizador não encontrado no pacote.' }
+    if (!(Test-Path -LiteralPath $atualizador)) { throw 'Atualizador não encontrado.' }
     py "$atualizador" --pacote "$pacote" --destino "$destino"
     if ($LASTEXITCODE -ne 0) { throw 'Atualização interrompida. Confira a mensagem acima.' }
-    & "$destino\iniciar.bat"
+    & "$destino\START_SONIFARMA.bat"
 }
 ```
 
-Não extraia o ZIP sobre a instalação existente. Ele deve ficar em uma pasta temporária. O atualizador valida a sintaxe dos arquivos Python sem executá-los, cria backup do código substituído e do banco com verificação de integridade, grava manifesto SHA-256 e preserva compras.sqlite3, contas, senhas, configurações locais e amostras. Uma falha de cópia aciona tentativa de restauração do código anterior; se falhar também, o caminho do backup e os arquivos pendentes são informados e o painel não é iniciado. A operação não é transacional contra queda de energia.
+A troca de código não modifica o banco. Ao iniciar, migrações aditivas continuam preservando os dados e as senhas. Os backups antigos de outras versões permanecem intactos.
 
-Após iniciar, entre no painel, confira o processo e os insumos e use Ctrl+F5 para atualizar o visual. Primeiro acesso: admin / senha inicial 123456, com troca obrigatória para senha de 8 a 128 caracteres. Se a senha já foi alterada, continua a mesma.
+## Próximas atualizações
 
-Depois desta atualização, também é possível abrir PowerShell na pasta da instalação e executar `./atualizar-github.ps1`; ele solicita o ZIP, atualiza e inicia o sistema. Não altere a política de execução global caso a empresa bloqueie scripts: use o bloco acima ou peça a liberação/assinatura ao administrador.
+Baixe o ZIP atual pelo GitHub e abra **ATUALIZAR_SONIFARMA.bat** na instalação. Selecione o pacote. Ele usa o controle para parar somente o servidor registrado desta instalação, faz backup verificado e cópia do código anterior, atualiza e inicia. Se qualquer etapa falhar, a sequência para e não inicia o painel. Se o código for atualizado, mas a inicialização falhar, a mensagem informa isso e aponta para os logs; não reverte o banco automaticamente.
 
-Para instalação nova, extraia o ZIP em uma pasta nova e execute iniciar.bat. Sem banco ou planilhas locais, um processo vazio é criado.
+Comandos equivalentes, no padrão do CRM, a partir da instalação:
 
-As sessões expiram em 12 horas; trocar a senha encerra todas as sessões do usuário. Cinco erros de senha bloqueiam o usuário por cinco minutos. O modo padrão permanece em 127.0.0.1; HTTPS exige SONIFARMA_COOKIE_SECURE=1.
+```powershell
+.\SONIFARMA_CONTROLE.ps1 update -Origem 'C:\Atualizacoes\SonifarnaCompras-main' -Destino 'D:\BackupsSonifarmaCompras'
+.\SONIFARMA_CONTROLE.ps1 start
+```
 
+A origem é a pasta extraída do pacote novo, separada da instalação. `-Destino` no controle é a pasta dos backups; no atualizador antigo `atualizar.py --destino`, é a pasta da instalação. A ferramenta funciona com caminhos contendo espaços. Se houver uma tarefa agendada chamada SonifarmaCompras, desative/remova essa supervisão antes da manutenção para impedir reinício concorrente.
+
+Os atalhos BAT usam a mesma opção de execução de PowerShell do acionamento do CRM, limitada à instância iniciada (`-ExecutionPolicy Bypass`); não alteram a política global nem sobrepõem políticas corporativas. Caso a empresa bloqueie a execução, solicite liberação/assinatura ao administrador.
+
+## Operação diária
+
+- START_SONIFARMA.bat ou iniciar.bat: inicia e abre o painel após confirmar a resposta.
+- STOP_SONIFARMA.bat: para somente o processo registrado do Compras.
+- RESTART_SONIFARMA.bat: para e inicia novamente.
+- STATUS_SONIFARMA.bat: confere processo e resposta.
+- ATUALIZAR_SONIFARMA.bat: seleciona o ZIP, atualiza e inicia.
+
+O servidor passa a executar em segundo plano; fechar o navegador não o encerra. Use STOP_SONIFARMA.bat. Não é iniciado automaticamente no login. A inicialização usa o Python do ambiente virtual local quando existe, ou o Python do launcher py; módulos necessários ausentes acionam a instalação pelo requirements.txt. Mudanças de versões das dependências devem seguir as notas da entrega.
+
+Logs: compras_servidor.log e compras_erros.log. O registro .sonifarma_compras.pid.json inclui PID e instante de criação; não identifica outro processo pelo número do PID isoladamente. O controle reconhece um filho do launcher de ambiente virtual quando ele atende a porta. Uma trava por instalação impede operações concorrentes. Uma porta ocupada por processo sem vínculo bloqueia a operação; não há encerramento indiscriminado de Python nem de processos do CRM.
+
+## Backup, verificação e recuperação
+
+```powershell
+.\SONIFARMA_CONTROLE.ps1 backup -Destino 'D:\BackupsSonifarmaCompras'
+.\SONIFARMA_CONTROLE.ps1 verify -Arquivo 'D:\BackupsSonifarmaCompras\compras_backup_DATA.zip'
+```
+
+O backup usa a API do SQLite, incluindo transações confirmadas no WAL. O ZIP contém compras.sqlite3 e um manifesto SHA-256; uma restauração temporária verifica o hash e PRAGMA integrity_check antes da publicação do backup. `verify` aceita este formato novo, não os diretórios de backup de versões anteriores. Usuários e hashes de senha estão no banco, portanto restrinja o acesso ao backup. O destino padrão é a subpasta backups da instalação; escolha outro disco/compartilhamento para proteção fora do disco local. Não há exclusão automática de backups nesta versão.
+
+Antes de atualizar, o código anterior é copiado para codigo_DATA no mesmo destino, com manifesto SHA-256. Cada arquivo novo é validado e substituído por arquivo temporário no mesmo volume. Uma falha de cópia aciona restauração do código anterior; falhas na restauração são informadas. Não é uma transação contra queda de energia. Configurações, bancos, credenciais e arquivos locais não estão na lista de código a substituir. Se SONIFARMA_COMPRAS_DB apontar para outro banco, a manutenção é cancelada para não fazer backup do banco errado.
+
+Em caso de regressão após iniciar: pare pelo controle, preserve o estado atual, restaure os arquivos da pasta codigo_DATA com orientação técnica e valide antes de reiniciar. Não restaure o banco antigo automaticamente: isso apagaria compras registradas depois do backup. As conexões abertas são encerradas quando o processo para, mas tokens persistidos em SQLite continuam sujeitos à expiração/logout/troca de senha; uma reinicialização sozinha não revoga todos os tokens.
+
+## Validação
+
+```powershell
+py -m unittest discover -s tests -v
+powershell -NoProfile -File tests\test_controle.ps1
+```
+
+Os testes Python usam bancos descartáveis; os testes de PowerShell simulam CIM/TCP e não substituem a conferência na máquina Windows real. Foi validado também o entry point iniciar_servidor.py com resposta HTTP real no ambiente de desenvolvimento. Após instalar, confira login, processo, itens e exportações; use Ctrl+F5 para renovar o visual.
 
 ## Novidades da V1.9 — regras de compra
 

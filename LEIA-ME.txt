@@ -32,3 +32,5 @@ V1.7: login admin, troca obrigatória da senha inicial, sessões protegidas e at
 V1.8: atualização por ZIP do GitHub sem instalar Git, backup verificado e recuperação de código. Consulte ATUALIZAR.md.
 
 V1.9: regras de validade, gramas/milheiros, embalagem anterior e cestas por fornecedor. Complete os dados novos conforme ATUALIZAR.md.
+
+V1.10: manutenção no padrão do CRM. Depois da primeira migração, use ATUALIZAR_SONIFARMA.bat para atualizar e STOP_SONIFARMA.bat para encerrar o servidor em segundo plano. Consulte ATUALIZAR.md.

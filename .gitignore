@@ -6,3 +6,5 @@ __pycache__/
 .env
 *.log
 amostras/
+.sonifarma_compras.pid.json
+backups/
