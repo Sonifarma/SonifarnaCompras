@@ -4,26 +4,33 @@ param(
     [string]$Backup = ''
 )
 $ErrorActionPreference = 'Stop'
+$Destino = (Resolve-Path -LiteralPath $Destino).Path
 if (!(Test-Path -LiteralPath (Join-Path $Destino 'compras.sqlite3'))) {
     throw "Banco nao encontrado em $Destino. Corrija a pasta de instalacao."
 }
 if (!$Backup) { $Backup = Join-Path $Destino 'backups' }
+$Pasta = Join-Path (Join-Path (Split-Path -Parent $Destino) 'AtualizacoesSonifarmaCompras') ((Get-Date -Format 'yyyyMMdd_HHmmss_fff') + '_' + [guid]::NewGuid().ToString('N').Substring(0,8))
+$null = New-Item -ItemType Directory -Path $Pasta
 if (!$Pacote) {
-    Add-Type -AssemblyName System.Windows.Forms
-    $Seletor = New-Object System.Windows.Forms.OpenFileDialog
-    $Seletor.Title = 'Selecione o ZIP baixado de Sonifarma/SonifarnaCompras no GitHub'
-    $Seletor.Filter = 'Arquivo ZIP (*.zip)|*.zip'
-    if ($Seletor.ShowDialog() -ne 'OK') { Write-Host 'Atualizacao cancelada.'; return }
-    $Pacote = $Seletor.FileName
+    $Pacote = Join-Path $Pasta 'projeto.zip'
+    Write-Host 'Baixando codigo do Sonifarma Compras pelo GitHub...'
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/Sonifarma/SonifarnaCompras/archive/refs/heads/main.zip' -OutFile $Pacote
 }
-$Temporario = Join-Path $env:TEMP ('SonifarmaCompras-' + [guid]::NewGuid())
-Expand-Archive -LiteralPath $Pacote -DestinationPath $Temporario
-$Pastas = @(Get-ChildItem -LiteralPath $Temporario -Directory)
-if ($Pastas.Count -ne 1) { throw 'Estrutura do ZIP invalida.' }
+$Extraido = Join-Path $Pasta 'extraido'
+Expand-Archive -LiteralPath $Pacote -DestinationPath $Extraido
+$Pastas = @(Get-ChildItem -LiteralPath $Extraido -Directory)
+if ($Pastas.Count -ne 1 -or $Pastas[0].Name -ne 'SonifarnaCompras-main') {
+    throw 'Estrutura do ZIP invalida: esperado SonifarnaCompras-main.'
+}
 $Origem = $Pastas[0].FullName
+foreach ($Arquivo in 'app.py','auth.py','procurement.py','manutencao.py','iniciar_servidor.py','SONIFARMA_CONTROLE.ps1','iniciar.bat','templates\index.html','static\sonifarma-logo.png') {
+    if (!(Test-Path -LiteralPath (Join-Path $Origem $Arquivo))) { throw "Pacote incompleto: $Arquivo" }
+}
+Get-ChildItem -LiteralPath $Origem -Filter '*.ps1' | Unblock-File
+# No stop happens before the download, extraction and required-file checks succeed.
 $Controle = Join-Path $Origem 'SONIFARMA_CONTROLE.ps1'
-if (!(Test-Path -LiteralPath $Controle)) { throw 'O pacote nao contem o novo controle de manutencao.' }
 & $Controle update -Pasta $Destino -Origem $Origem -Destino $Backup
-# An exception from the controller stops this script; never restart after failure.
+# A controller exception stops this script; never start after an update failure.
 & "$Destino\iniciar.bat"
 if ($LASTEXITCODE -ne 0) { throw 'Atualizacao aplicada, mas inicializacao falhou. Consulte os logs.' }
+Write-Host 'Atualizacao concluida. Confira o painel e use Ctrl+F5.'

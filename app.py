@@ -10,7 +10,7 @@ from difflib import SequenceMatcher
 from procurement import evaluate, commercial, unit, parse_date, today
 
 ROOT=Path(__file__).parent; DB=Path(os.environ.get('SONIFARMA_COMPRAS_DB', ROOT/'compras.sqlite3'))
-app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.10')
+app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.11')
 app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
 
 def db():

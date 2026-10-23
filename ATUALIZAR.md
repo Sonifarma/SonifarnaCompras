@@ -1,54 +1,57 @@
-# Atualização e controle — V1.10
+# Atualização e controle — V1.11
 
 O Compras agora usa o mesmo modelo de manutenção do SonifarmaCRM: controle com start/stop/restart/status/backup/verify/update, processo identificado por PID e caminho, resposta funcional verificada, ZIP de backup restaurado temporariamente e atualização restrita a uma lista explícita de arquivos de código.
 
 O Compras mantém seu banco, contas e porta 8766. Não usa o PostgreSQL, IP, certificados ou credenciais do CRM. Não foram adicionados supervisão automática nem agendamento. Não é necessário instalar Git.
 
-## Primeira migração para este controle
+## Atualização pelo PowerShell — mesmo fluxo do CRM
 
-1. Baixe o código em https://github.com/Sonifarma/SonifarnaCompras, em Code → Download ZIP.
-2. Feche a janela antiga do Compras. Essa primeira instância não foi registrada pelo novo gerenciador e não será encerrada automaticamente.
-3. Cole o bloco inteiro no PowerShell e selecione o ZIP baixado. Ele usa o atualizador do pacote novo, preservando a instalação existente:
+O pacote é baixado automaticamente do GitHub, extraído em uma pasta separada e conferido antes de acionar a manutenção. Se estiver na versão antiga iniciada por uma janela de terminal, feche essa janela na primeira migração. Servidores iniciados pelo controle novo são parados automaticamente pela identificação registrada.
 
 ```powershell
 & {
+    Set-Location 'C:\Sonifarmacompras'
     $ErrorActionPreference = 'Stop'
-    $destino = 'C:\Sonifarmacompras'
-    if (!(Test-Path -LiteralPath "$destino\compras.sqlite3")) {
-        throw 'Banco não encontrado. Confira a pasta de instalação.'
+    $instalacao = (Get-Location).Path
+    $pasta = Join-Path 'C:\AtualizacoesSonifarmaCompras' (Get-Date -Format 'yyyyMMdd_HHmmss_fff')
+    New-Item -ItemType Directory -Path $pasta | Out-Null
+
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/Sonifarma/SonifarnaCompras/archive/refs/heads/main.zip' -OutFile "$pasta\projeto.zip"
+    Expand-Archive -LiteralPath "$pasta\projeto.zip" -DestinationPath $pasta
+    $origem = Join-Path $pasta 'SonifarnaCompras-main'
+
+    foreach ($arquivo in 'app.py','auth.py','procurement.py','manutencao.py','iniciar_servidor.py','SONIFARMA_CONTROLE.ps1','iniciar.bat','templates\index.html','static\sonifarma-logo.png') {
+        if (!(Test-Path -LiteralPath "$origem\$arquivo")) { throw "Pacote incompleto: $arquivo" }
     }
-    Add-Type -AssemblyName System.Windows.Forms
-    $seletor = New-Object System.Windows.Forms.OpenFileDialog
-    $seletor.Title = 'Selecione o ZIP atualizado do Compras baixado do GitHub'
-    $seletor.Filter = 'Arquivo ZIP (*.zip)|*.zip'
-    if ($seletor.ShowDialog() -ne 'OK') { return }
-    $pacote = $seletor.FileName
-    $temporario = Join-Path $env:TEMP ('SonifarmaCompras-' + [guid]::NewGuid())
-    Expand-Archive -LiteralPath $pacote -DestinationPath $temporario
-    $pastas = @(Get-ChildItem -LiteralPath $temporario -Directory)
-    if ($pastas.Count -ne 1) { throw 'Estrutura do ZIP inválida.' }
-    $atualizador = Join-Path $pastas[0].FullName 'atualizar.py'
-    if (!(Test-Path -LiteralPath $atualizador)) { throw 'Atualizador não encontrado.' }
-    py "$atualizador" --pacote "$pacote" --destino "$destino"
-    if ($LASTEXITCODE -ne 0) { throw 'Atualização interrompida. Confira a mensagem acima.' }
-    & "$destino\START_SONIFARMA.bat"
+    Get-ChildItem -LiteralPath $origem -Filter '*.ps1' | Unblock-File
+    & "$origem\SONIFARMA_CONTROLE.ps1" update -Pasta $instalacao -Origem $origem -Destino "$instalacao\backups"
+    & "$instalacao\iniciar.bat"
+    if ($LASTEXITCODE -ne 0) { throw 'Codigo atualizado, mas a inicializacao falhou. Confira os logs.' }
 }
 ```
 
-A troca de código não modifica o banco. Ao iniciar, migrações aditivas continuam preservando os dados e as senhas. Os backups antigos de outras versões permanecem intactos.
+Use o bloco inteiro: uma falha interrompe as etapas seguintes. O controle do pacote novo também permite atualizar instalações que ainda não possuem SONIFARMA_CONTROLE.ps1. O backup vai para a subpasta backups; é possível trocar esse destino por outro disco, por exemplo D:\BackupsSonifarmaCompras.
 
-## Próximas atualizações
+A tarefa automática do CRM não é alterada. O Compras não instala supervisão/agendamento nesta versão. Se houver uma tarefa personalizada chamada SonifarmaCompras, o controle exige sua remoção antes da manutenção para impedir reinício concorrente.
 
-Baixe o ZIP atual pelo GitHub e abra **ATUALIZAR_SONIFARMA.bat** na instalação. Selecione o pacote. Ele usa o controle para parar somente o servidor registrado desta instalação, faz backup verificado e cópia do código anterior, atualiza e inicia. Se qualquer etapa falhar, a sequência para e não inicia o painel. Se o código for atualizado, mas a inicialização falhar, a mensagem informa isso e aponta para os logs; não reverte o banco automaticamente.
+## Próximas atualizações com um clique
 
-Comandos equivalentes, no padrão do CRM, a partir da instalação:
+Abra **ATUALIZAR_SONIFARMA.bat**. Ele agora baixa o ZIP automaticamente, confere o pacote, para o processo registrado, faz backup verificado, atualiza somente o código e inicia. Não solicita arquivo, não exige Git e mantém os pacotes extraídos em AtualizacoesSonifarmaCompras, ao lado da pasta de instalação. Nenhum banco, usuário, senha ou configuração local é substituído.
+
+O modo manual continua disponível para um pacote já baixado:
 
 ```powershell
-.\SONIFARMA_CONTROLE.ps1 update -Origem 'C:\Atualizacoes\SonifarnaCompras-main' -Destino 'D:\BackupsSonifarmaCompras'
+.\atualizar-github.ps1 -Pacote 'C:\Atualizacoes\projeto.zip' -Destino 'C:\Sonifarmacompras'
+```
+
+Comandos equivalentes ao controle do CRM, a partir da instalação:
+
+```powershell
+.\SONIFARMA_CONTROLE.ps1 update -Origem 'C:\AtualizacoesSonifarmaCompras\PASTA_DA_VERSAO\SonifarnaCompras-main' -Destino 'D:\BackupsSonifarmaCompras'
 .\SONIFARMA_CONTROLE.ps1 start
 ```
 
-A origem é a pasta extraída do pacote novo, separada da instalação. `-Destino` no controle é a pasta dos backups; no atualizador antigo `atualizar.py --destino`, é a pasta da instalação. A ferramenta funciona com caminhos contendo espaços. Se houver uma tarefa agendada chamada SonifarmaCompras, desative/remova essa supervisão antes da manutenção para impedir reinício concorrente.
+A origem deve ser uma pasta separada, fora da instalação. `-Destino` no controle é a pasta de backups; no script atualizar-github.ps1 e em atualizar.py --destino, é a pasta da instalação. Uma falha impede o reinício. Se o código tiver sido aplicado e a inicialização falhar, consulte os logs antes de tentar novamente; não reverta o banco automaticamente.
 
 Os atalhos BAT usam a mesma opção de execução de PowerShell do acionamento do CRM, limitada à instância iniciada (`-ExecutionPolicy Bypass`); não alteram a política global nem sobrepõem políticas corporativas. Caso a empresa bloqueie a execução, solicite liberação/assinatura ao administrador.
 
@@ -58,7 +61,7 @@ Os atalhos BAT usam a mesma opção de execução de PowerShell do acionamento d
 - STOP_SONIFARMA.bat: para somente o processo registrado do Compras.
 - RESTART_SONIFARMA.bat: para e inicia novamente.
 - STATUS_SONIFARMA.bat: confere processo e resposta.
-- ATUALIZAR_SONIFARMA.bat: seleciona o ZIP, atualiza e inicia.
+- ATUALIZAR_SONIFARMA.bat: baixa o ZIP do GitHub, atualiza e inicia.
 
 O servidor passa a executar em segundo plano; fechar o navegador não o encerra. Use STOP_SONIFARMA.bat. Não é iniciado automaticamente no login. A inicialização usa o Python do ambiente virtual local quando existe, ou o Python do launcher py; módulos necessários ausentes acionam a instalação pelo requirements.txt. Mudanças de versões das dependências devem seguir as notas da entrega.
 
@@ -82,9 +85,10 @@ Em caso de regressão após iniciar: pare pelo controle, preserve o estado atual
 ```powershell
 py -m unittest discover -s tests -v
 powershell -NoProfile -File tests\test_controle.ps1
+powershell -NoProfile -File tests\test_atualizador.ps1
 ```
 
-Os testes Python usam bancos descartáveis; os testes de PowerShell simulam CIM/TCP e não substituem a conferência na máquina Windows real. Foi validado também o entry point iniciar_servidor.py com resposta HTTP real no ambiente de desenvolvimento. Após instalar, confira login, processo, itens e exportações; use Ctrl+F5 para renovar o visual.
+Os testes Python usam bancos descartáveis; os testes de PowerShell simulam CIM/TCP e as operações externas de download/inicialização e não substituem a conferência na máquina Windows real. Foi validado também o entry point iniciar_servidor.py com resposta HTTP real no ambiente de desenvolvimento. Após instalar, confira login, processo, itens e exportações; use Ctrl+F5 para renovar o visual.
 
 ## Novidades da V1.9 — regras de compra
 

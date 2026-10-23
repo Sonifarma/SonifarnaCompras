@@ -7,7 +7,7 @@ import zipfile
 from manutencao import CODE_FILES, update_code
 
 ROOTS = {'Sonifarmacompras', 'SonifarnaCompras-main'} | {
-    'SonifarnaCompras-v1.' + str(n) for n in range(7, 11)
+    'SonifarnaCompras-v1.' + str(n) for n in range(7, 12)
 }
 
 
