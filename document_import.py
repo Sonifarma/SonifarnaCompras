@@ -6,7 +6,7 @@ import math
 import re
 from threading import Lock
 import fitz
-from procurement import normalize, parse_date
+from procurement import normalize, parse_date, is_capsule
 
 
 @dataclass
@@ -98,15 +98,56 @@ def pharma_row(row):
     return quote(product,quantity,base,price/quantity,row[6],warnings)
 
 
-def native_tables(page,result):
+def active_row(row):
+    if len(row)!=17 or not re.fullmatch(r'[0-9]+-[0-9]+',re.sub(r'\s+','',str(row[1] or ''))):return None
+    product=text(row[4]);size=number(row[7]);pack_price=number(row[8]);rate=number(row[9])
+    if not product or not size or size<=0 or pack_price is None or rate is None:return None
+    base=base_unit(row[14]);warnings=[]
+    # This template explicitly prices capsules per mlh, although UMB says Unid.
+    if is_capsule(product):
+        base='MILHEIRO'
+        warnings.append('Cápsulas: fracionamento interpretado em milheiros pelo cabeçalho g/mlh, embora UMB indique unidades; confirme com o fornecedor')
+    elif base not in {'G','KG','MG','ML','L'}:
+        base='';warnings.append('Unidade do fracionamento não reconhecida')
+    if abs(size*rate-pack_price)>max(.03,size*.0005+.005):
+        warnings.append('Preço da embalagem diverge do preço g/mlh; confira os valores')
+    if text(row[5]):warnings.append('Informações adicionais: '+text(row[5]))
+    return quote(product,size,base,pack_price/size,row[11],warnings)
+
+
+def embrafarma_row(row):
+    if len(row)!=12 or not re.fullmatch(r'\d{1,4}',text(row[0])):return None
+    product=text(row[1]);count=number(row[2]);base=base_unit(row[3]);price=number(row[4])
+    if not product or count is None or count<=0 or price is None:return None
+    size,pack_base=package(product,suffix=True);warnings=[]
+    factors={'G':('mass',1),'KG':('mass',1000),'MG':('mass',.001),
+             'L':('volume',1000),'ML':('volume',1),'MILHEIRO':('count',1000),'CAPSULAS':('count',1),'UN':('count',1)}
+    if size is None:
+        size=count;warnings.append('Quantidade cotada usada como referência de embalagem; confirme a embalagem mínima')
+    elif pack_base!=base:
+        source=factors.get(pack_base);target=factors.get(base)
+        if source and target and source[0]==target[0]:size=size*source[1]/target[1]
+        else:size=None;warnings.append('Unidade da embalagem diverge da unidade do preço; confirme com o fornecedor')
+    total=number(row[7])
+    # The unit price has two decimal places; tolerate only its rounding error.
+    if total is not None and abs(count*price-total)>max(.02,count*.005+.01):
+        warnings.append('Total da linha diverge da quantidade e do preço unitário; confira o valor comercial')
+    if (number(row[5]) or 0)>0 or (number(str(row[6] or '').replace('%','')) or 0)>0:
+        warnings.append('Confira ST/IPI e a base dos valores antes de aprovar')
+    return quote(product,size,base,price,row[8],warnings)
+
+
+def native_tables(page,result,default_parser=None):
     found=0
     for table in page.find_tables().tables:
-        parser=None
+        parser=default_parser
         for row in table.extract():
             labels=[normalize(cell) for cell in row]
             if len(row)==11 and labels[0]=='DESCRICAO' and 'VALOR UNIT' in labels[6]:parser=shared_row;continue
             if len(row)==9 and labels[0]=='PRODUTO' and labels[4]=='EMBALAGEM':parser=pn_row;continue
             if len(row)==8 and labels[0]=='ITENS' and 'DESCRICAO' in labels[1]:parser=pharma_row;continue
+            if len(row)==17 and labels[4]=='INSUMO' and labels[9]=='PRECO G MLH':parser=active_row;continue
+            if len(row)==12 and labels[:4]==['ITEM','PRODUTO','QTDE','UN'] and labels[4]=='VALOR UNITARIO':parser=embrafarma_row;continue
             if parser:
                 record=parser(row)
                 if record:result.rows.append(record);found+=1
@@ -370,6 +411,8 @@ def extract_document(raw,filename):
         signature=normalize(full_text)
         is_i9='VALOR DE VENDA' in signature and 'PRECO TOTAL' in signature and 'EMBALAGEM' in signature
         is_galena='GALENA' in signature and 'VALOR UNIT' in signature and 'VALOR ITEM' in signature
+        compact=signature.replace(' ','')
+        layout_parser=active_row if 'PRECOGMLH' in compact and 'FRACIONAMENTO' in compact and 'INSUMO' in compact else (embrafarma_row if 'VALORDAST' in compact and 'VALORUNITARIO' in compact and 'DCB' in compact and 'QTDE' in compact else None)
         shared_cuts=None
         if not is_i9 and not is_galena:
             for table in document[0].find_tables().tables if len(document) else []:
@@ -393,7 +436,7 @@ def extract_document(raw,filename):
                 galena_page(page,result);continue
             if shared_cuts:
                 shared_page(page,result,shared_cuts);continue
-            if native_tables(page,result):continue
+            if native_tables(page,result,layout_parser):continue
             nutri=nutri_lines(native.splitlines())
             if nutri:result.rows.extend(nutri);result.methods.add('tabela Nutrifarm')
         if not result.rows:result.warnings.append('Nenhuma tabela de cotação reconhecida neste layout.')

@@ -1,4 +1,4 @@
-# Atualização e controle — V1.14
+# Atualização e controle — V1.15
 
 O Compras agora usa o mesmo modelo de manutenção do SonifarmaCRM: controle com start/stop/restart/status/backup/verify/update, processo identificado por PID e caminho, resposta funcional verificada, ZIP de backup restaurado temporariamente e atualização restrita a uma lista explícita de arquivos de código.
 
@@ -143,6 +143,20 @@ Incluída a dependência `tzdata`, necessária no Windows para consultar `Americ
 A interface distingue uma importação confirmada de uma falha posterior ao atualizar o painel. Os arquivos concluídos permanecem marcados e não são reenviados pela mesma fila. Erros de servidor mostram o código HTTP e indicam `compras_erros.log` para diagnóstico. Se os registros já aparecem como importados, atualize o programa e recarregue a página; não reimporte a planilha. Banco e senhas existentes são preservados.
 
 Atualização pelo PowerShell:
+
+```powershell
+& "C:\Sonifarmacompras\ATUALIZAR_SONIFARMA.bat"
+```
+
+## Leitura Active/Caldic e Embrafarma — V1.15
+
+Adicionados leitores das tabelas nativas dos dois fornecedores, incluindo páginas de continuação e descrições quebradas em mais de uma linha. A validação isolada dos PDFs enviados reconheceu 73 opções de embalagem da Active/Caldic e 24 itens da Embrafarma. Arquivos comerciais e dados de clientes não são publicados; testes usam tabelas sintéticas.
+
+Na Active, cada fracionamento é mantido como uma opção distinta, mesmo quando o código se repete. O preço da embalagem é preservado e comparado com a coluna g/mlh. Cápsulas são interpretadas em milheiros pelo cabeçalho, mas ficam obrigatoriamente sinalizadas porque a coluna UMB informa unidades. Informações adicionais, inclusive IPI e concentração, são mantidas como alertas de conferência. Frete continua sujeito às condições comerciais confirmadas pelo comprador.
+
+Na Embrafarma, a embalagem vem do sufixo do produto, sem confundir a quantidade total cotada com o tamanho do pacote. Embalagens em gramas e preços por kg são compatibilizados, sem converter volume em massa. ST/IPI e divergências entre preço, quantidade e total exigem conferência. A validade mensal é conservadoramente registrada como o primeiro dia do mês.
+
+Após atualizar, pressione Ctrl+F5 e selecione novamente apenas ACTIVE.pdf e EMBRAFARMA.pdf, que antes retornaram zero itens. Confira os alertas em Revisar cotações importadas. Não reimporte os arquivos já concluídos anteriormente.
 
 ```powershell
 & "C:\Sonifarmacompras\ATUALIZAR_SONIFARMA.bat"

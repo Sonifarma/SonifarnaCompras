@@ -13,7 +13,7 @@ from procurement import evaluate, commercial, unit, parse_date, today
 from document_import import extract_document, spreadsheet_rows, spreadsheet_quote_rows
 
 ROOT=Path(__file__).parent; DB=Path(os.environ.get('SONIFARMA_COMPRAS_DB', ROOT/'compras.sqlite3'))
-app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.14')
+app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.15')
 app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
 
 def db():

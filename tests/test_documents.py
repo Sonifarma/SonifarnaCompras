@@ -3,14 +3,14 @@ import unittest
 import fitz
 from PIL import Image,ImageDraw,ImageFont
 from document_import import (extract_document,number,package,pn_row,pharma_row,shared_row,
-                             spreadsheet_rows,spreadsheet_quote_rows,nutri_lines,ocr_i9_lines)
+                             spreadsheet_rows,spreadsheet_quote_rows,nutri_lines,ocr_i9_lines,active_row,embrafarma_row)
 from procurement import evaluate,unit
 
 
 def table_pdf(headers,rows,cuts,continuation=None):
     document=fitz.open()
     for index,data in enumerate([rows]+([continuation] if continuation else [])):
-        page=document.new_page(width=842,height=595)
+        page=document.new_page(width=max(842,cuts[-1]+20),height=595)
         content=([headers] if index==0 else [])+data
         y=100;step=35
         for j in range(len(content)+1):page.draw_line((cuts[0],y+j*step),(cuts[-1],y+j*step))
@@ -39,6 +39,46 @@ def legacy_xls():
 
 
 class DocumentReaders(unittest.TestCase):
+    def test_active_native_table_capsules_and_alternative_packs(self):
+        header=['Qtde Compra','Cód.','Tipo','CAS','Insumo','Informações adicionais','ICMS','Fracionamento','Preço Unit.','Preço g/mlh','Lote','Validade','Origem','Qtde UMB','UMB','Vlr Unit c/ frete','Vlr Total c/ frete']
+        first=['','12345678-001','Ativo','','AMIDO','','12%','500','35,00','0,070','L1','01/01/2029','','0,00','g','-','-']
+        second=first.copy();second[7:10]=['1000','60,00','0,060']
+        capsule=first.copy();capsule[4]='Cáps. 0 Branca';capsule[5]='9% IPI';capsule[7:10]=['2,5','50,00','20,000'];capsule[14]='Unid'
+        result=extract_document(table_pdf(header,[first,second,capsule],[20+i*85 for i in range(18)]),'active.pdf')
+        self.assertEqual(len(result.rows),3)
+        self.assertEqual([q['base_qty'] for q in result.rows],[500,1000,2.5])
+        self.assertEqual(result.rows[0]['base_unit'],'G')
+        self.assertEqual(result.rows[1]['total'],60)
+        self.assertEqual(result.rows[2]['base_unit'],'MILHEIRO')
+        self.assertIn('UMB',result.rows[2]['import_warning'])
+        self.assertIn('IPI',result.rows[2]['import_warning'])
+        self.assertIsNone(active_row(['']*17))
+
+    def test_embrafarma_native_table_keeps_pack_separate_from_quantity(self):
+        header=['Item','Produto','Qtde','UN','Valor Unitário','Valor da ST','IPI','Valor Total','Validade','Origem','DCB','CAS']
+        first=['001','AMIDO 1kg','5','KG','7,00','0,00','0%','35,00','07/2028','Brasil','','']
+        second=['002','EXTRATO 250gr','0,250','KG','1000,00','0,00','0%','250,00','12/2028','Brasil','','']
+        result=extract_document(table_pdf(header,[first],[20+i*95 for i in range(13)],[second]),'embrafarma.pdf')
+        self.assertEqual(len(result.rows),2)
+        self.assertEqual(result.rows[0]['base_qty'],1)
+        self.assertEqual(result.rows[0]['total'],7)
+        self.assertEqual(result.rows[1]['base_qty'],.25)
+        self.assertEqual(result.rows[1]['total'],250)
+        self.assertEqual(result.rows[1]['expiry'],'2028-12-01')
+        self.assertTrue(all(not q['import_warning'] for q in result.rows))
+
+    def test_embrafarma_capsules_tax_discrepancy_and_ambiguous_pack(self):
+        row=['001','Capsula 0 Branca 5mi','5','MI','20,00','0,00','0%','100,00','07/2030','','','']
+        value=embrafarma_row(row)
+        self.assertEqual((value['base_qty'],value['base_unit'],value['total']),(5,'MILHEIRO',100))
+        row[1:5]=['ATIVO 50gr','50','GR','2,00'];row[7]='100,40'
+        self.assertIn('Total da linha',embrafarma_row(row)['import_warning'])
+        row[6]='5%';self.assertIn('ST/IPI',embrafarma_row(row)['import_warning'])
+        row[1]='OLEO 1L';value=embrafarma_row(row)
+        self.assertIsNone(value['base_qty'])
+        self.assertIn('Unidade da embalagem',value['import_warning'])
+        row[1]='SEM EMBALAGEM';self.assertIn('referência',embrafarma_row(row)['import_warning'])
+
     def test_explicit_locales_do_not_confuse_thousands(self):
         self.assertEqual(number('3,950.00','en'),3950)
         self.assertEqual(number('3.950,00'),3950)
