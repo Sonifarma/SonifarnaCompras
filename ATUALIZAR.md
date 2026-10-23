@@ -1,4 +1,4 @@
-# Atualização e controle — V1.11
+# Atualização e controle — V1.12
 
 O Compras agora usa o mesmo modelo de manutenção do SonifarmaCRM: controle com start/stop/restart/status/backup/verify/update, processo identificado por PID e caminho, resposta funcional verificada, ZIP de backup restaurado temporariamente e atualização restrita a uma lista explícita de arquivos de código.
 
@@ -107,3 +107,16 @@ A melhor opção do item prioriza desembolso sem frete entre alternativas com re
 Os rascunhos PDF/XLSX incluem o desembolso em embalagens inteiras, alertas e condições da cesta. A diferença teórica contra custo anterior considera só a quantidade necessária; não inclui frete nem o desembolso em excedentes e exige conferir a base do custo anterior.
 
 As transferências são simulações individuais entre cestas, apenas para vínculos aprovados, validade e embalagem atendidas, sem acrescentar excedente de estoque e sem deixar a cesta de origem abaixo do mínimo. Cestas com pendências não são usadas nessas simulações. Condições/fretes não confirmados deixam a diferença com frete pendente. As sugestões não se acumulam nem são aplicadas automaticamente; não representam otimização global de todos os pedidos. Não há envio de pedidos.
+
+
+## Importação de vários arquivos — V1.12
+
+Em Importar documentos, selecione vários arquivos com Ctrl/Shift. Necessidades aceitam planilhas XLSX; cotações aceitam XLSX e PDF no mesmo lote. Limites: 30 arquivos, 15 MB por arquivo e 50 MB de conteúdo processado no lote. Todos são importados no processo selecionado.
+
+Cada cotação tem seu próprio campo de fornecedor. O fornecedor padrão é opcional e preenche as linhas ainda não personalizadas. Confira esses nomes antes de enviar. Uma planilha no layout “Todas as cotações” mantém os fornecedores declarados nas próprias linhas; o nome informado no formulário é usado onde estiver ausente. Não há identificação automática confiável de fornecedores em PDFs.
+
+Ao concluir, a fila mostra o resultado de cada arquivo: importado, sem registros reconhecidos ou erro. Arquivos sem registros não são apresentados como importação bem-sucedida. Um erro não impede os outros arquivos. Cada arquivo tem uma transação: registros e auditoria são gravados juntos, ou nenhum registro dele é mantido.
+
+Os arquivos concluídos ficam fora de novos envios dessa mesma fila. O botão permite tentar de novo apenas os que falharam; se a conexão cair após a gravação, o identificador mantido na fila evita gravar novamente o arquivo na tentativa seguinte. Não recarregue a página para repetir um envio não confirmado: a fila e seus identificadores são mantidos nesta página. Recarregar e selecionar os arquivos novamente cria uma importação nova; não existe deduplicação global por nome ou por conteúdo. Para corrigir o conteúdo de um arquivo, selecione a versão corrigida sem incluir os arquivos que já foram importados.
+
+A atualização cria apenas uma tabela de recibos de importação para as tentativas da fila, sem apagar dados ou alterar senhas. Os endpoints antigos de arquivo único continuam disponíveis. PDFs mantêm a extração conservadora, sem OCR; cabeçalhos, unidades, embalagens e validades continuam sujeitos às verificações existentes. A importação acrescenta registros; não substitui as compras anteriores.

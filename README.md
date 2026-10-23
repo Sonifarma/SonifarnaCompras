@@ -1,6 +1,6 @@
 # Sonifarma — Inteligência de Compras
 
-Aplicação FastAPI + SQLite para importar necessidades/cotações, comparar fornecedores e gerar rascunhos em PDF/XLSX. A versão 1.11 segue a identidade visual do painel SonifarmaCRM: logotipo, turquesa #00a6ad, botões #00777d, laranja #ff6900, cartões e navegação responsiva.
+Aplicação FastAPI + SQLite para importar necessidades/cotações, comparar fornecedores e gerar rascunhos em PDF/XLSX. A versão 1.12 segue a identidade visual do painel SonifarmaCRM: logotipo, turquesa #00a6ad, botões #00777d, laranja #ff6900, cartões e navegação responsiva.
 
 ## Executar
 
@@ -44,7 +44,7 @@ Os testes usam banco temporário e cobrem remoção persistente, preservação d
 
 Consulte [os comandos de atualização para Windows](ATUALIZAR.md). Nunca sobrescreva o banco ao extrair um ZIP sobre uma instalação existente.
 
-Versão 1.11 publicada em Sonifarma/SonifarnaCompras. O código não contém bancos nem planilhas comerciais.
+Versão 1.12 publicada em Sonifarma/SonifarnaCompras. O código não contém bancos nem planilhas comerciais.
 
 V1.8: atualização por ZIP do GitHub sem Git instalado, seguindo o fluxo operacional do CRM; validação de sintaxe, manifesto de backup e restauração do código em caso de falha de cópia.
 
@@ -53,3 +53,5 @@ V1.9: validade superior a um ano na entrega, massa em g e cápsulas em milheiros
 V1.10: controle operacional equivalente ao CRM (start/stop/restart/status/backup/verify/update), atalhos BAT, processo identificado, logs e verificação de resposta, backup ZIP com restauração temporária e atualização atômica por arquivo com recuperação de código. Consulte ATUALIZAR.md para a primeira migração e para atualizações pelo ATUALIZAR_SONIFARMA.bat.
 
 V1.11: atualização com download automático pelo PowerShell, como no CRM. O atalho ATUALIZAR_SONIFARMA.bat baixa, valida, faz backup, atualiza e inicia. Não requer selecionar ZIP nem instalar Git.
+
+V1.12: importação múltipla de XLSX/PDF, fornecedor por arquivo, resultado individual, transação por arquivo e repetição segura de tentativas da mesma fila. Consulte ATUALIZAR.md para limites e instruções.

@@ -36,3 +36,5 @@ V1.9: regras de validade, gramas/milheiros, embalagem anterior e cestas por forn
 V1.10: manutenção no padrão do CRM. Depois da primeira migração, use ATUALIZAR_SONIFARMA.bat para atualizar e STOP_SONIFARMA.bat para encerrar o servidor em segundo plano. Consulte ATUALIZAR.md.
 
 V1.11: ATUALIZAR_SONIFARMA.bat baixa automaticamente do GitHub e segue o fluxo de manutencao do CRM. Consulte ATUALIZAR.md para o primeiro uso.
+
+V1.12: selecione varios arquivos de uma vez nas importacoes. Confira o fornecedor em cada cotacao e acompanhe o resultado individual na fila.
