@@ -30,6 +30,10 @@ def parse_date(value):
     return None
 
 
+def is_capsule(product):
+    return bool(re.search(r'CAPSUL|\bCAPS?\b|VCAPS|DRCAPS|TAPIOCAPS', normalize(product)))
+
+
 def unit(value, product=''):
     value = normalize(value)
     if value in {'G', 'GR', 'GRAMA', 'GRAMAS'}:
@@ -38,9 +42,11 @@ def unit(value, product=''):
         return 'g', 1000
     if value in {'MG', 'MILIGRAMA', 'MILIGRAMAS'}:
         return 'g', .001
-    if value in {'MIL', 'MILH', 'MILHEIRO', 'MILHEIROS', '1000 UN', '1000 UNIDADES'}:
+    if value in {'MIL', 'MILH', 'MI', 'MH', 'MILHEIRO', 'MILHEIROS', '1000 UN', '1000 UNIDADES'}:
         return 'milheiro', 1
-    if value in {'UN', 'UND', 'UNID', 'UNIDADE', 'UNIDADES', 'CAP', 'CAPS', 'CAPSULA', 'CAPSULAS'} and 'CAPSUL' in normalize(product):
+    if value in {'CAP', 'CAPS', 'CAPSULA', 'CAPSULAS'}:
+        return 'milheiro', .001
+    if value in {'UN', 'UND', 'UNID', 'UNIDADE', 'UNIDADES'} and is_capsule(product):
         return 'milheiro', .001
     return None, None
 
@@ -54,10 +60,11 @@ def evaluate(need, quote, delivery=None):
     cutoff = date(delivery.year + 1, delivery.month,
                   min(delivery.day, calendar.monthrange(delivery.year + 1, delivery.month)[1]))
     warnings = []
+    if quote.get('import_warning'):warnings.append('Conferir extração: '+quote['import_warning'])
     name = need.get('name', '')
     base, factor = unit(need.get('unit'), name)
     quote_base, quote_factor = unit(quote.get('base_unit'), quote.get('product', name))
-    if 'CAPSUL' in normalize(name) and base != 'milheiro':
+    if is_capsule(name) and base != 'milheiro':
         warnings.append('Cápsulas exigem quantidade em milheiros ou unidades contáveis')
     qty = need.get('qty')
     quantity = qty * factor if positive(qty) and factor else None

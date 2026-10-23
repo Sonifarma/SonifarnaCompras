@@ -10,9 +10,10 @@ from openpyxl import load_workbook
 import fitz
 from difflib import SequenceMatcher
 from procurement import evaluate, commercial, unit, parse_date, today
+from document_import import extract_document, spreadsheet_rows, spreadsheet_quote_rows
 
 ROOT=Path(__file__).parent; DB=Path(os.environ.get('SONIFARMA_COMPRAS_DB', ROOT/'compras.sqlite3'))
-app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.12')
+app=FastAPI(docs_url=None,redoc_url=None,openapi_url=None,title='Sonifarma | Inteligência de Compras V1.13')
 app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
 
 def db():
@@ -28,7 +29,7 @@ def init():
  CREATE TABLE IF NOT EXISTS purchase_audit(id INTEGER PRIMARY KEY,process_id INTEGER,need_id INTEGER,quote_id INTEGER,action TEXT,reason TEXT,created TEXT);''')
 init()
 with db() as c:
- for table,column,definition in [('needs','last_pack_qty','REAL'),('needs','last_pack_unit','TEXT'),('processes','delivery_date','TEXT')]:
+ for table,column,definition in [('needs','last_pack_qty','REAL'),('needs','last_pack_unit','TEXT'),('processes','delivery_date','TEXT'),('quotes','import_warning','TEXT')]:
   if column not in {r[1] for r in c.execute('PRAGMA table_info('+table+')')}:
    c.execute('ALTER TABLE '+table+' ADD COLUMN '+column+' '+definition)
  c.execute('CREATE TABLE IF NOT EXISTS supplier_terms(supplier TEXT PRIMARY KEY,minimum_order REAL NOT NULL DEFAULT 700,free_shipping_from REAL NOT NULL DEFAULT 2000,freight REAL,confirmed INTEGER NOT NULL DEFAULT 0)')
@@ -211,9 +212,9 @@ MAX_IMPORT_BYTES=15*1024*1024
 MAX_BATCH_BYTES=50*1024*1024
 
 def parse_needs(raw,filename):
- if not filename.lower().endswith('.xlsx'):raise HTTPException(400,'Necessidade deve ser XLSX')
+ if not filename.lower().endswith(('.xlsx','.xls')):raise HTTPException(400,'Necessidade deve ser XLS ou XLSX')
  items=[]
- for _,rows in rows_xlsx(raw):
+ for _,rows in read_sheets(raw,filename):
   for index,header in enumerate(rows):
    if len(header)>1 and norm(header[0])=='CODIGO' and 'PRODUTO' in norm(header[1]):
     labels=[norm(value) for value in header]
@@ -228,36 +229,38 @@ def parse_needs(raw,filename):
     break
  return items
 
+def read_sheets(raw,filename):
+ try:return spreadsheet_rows(raw,filename) if filename.lower().endswith('.xls') else rows_xlsx(raw)
+ except ValueError as error:raise HTTPException(400,str(error))
+
+class ImportRows(list):
+ warning=''
+
 def parse_quotes(raw,filename,supplier):
  if not supplier.strip():raise HTTPException(400,'Informe o fornecedor deste arquivo')
- supplier=supplier.strip();items=[]
- def append(vendor,product,pack,quantity,base,total,price,expiry):
-  if product and vendor:items.append((str(vendor).strip(),str(product).strip(),str(pack or ''),num(quantity),str(base or ''),num(total),num(price),str(expiry or ''),filename,''))
- if filename.lower().endswith('.xlsx'):
-  for sheet,rows in rows_xlsx(raw):
+ supplier=supplier.strip();items=ImportRows()
+ def append(vendor,product,pack,quantity,base,total,price,expiry,warning=''):
+  if product and vendor:items.append((str(vendor).strip(),str(product).strip(),str(pack or ''),num(quantity),str(base or ''),num(total),num(price),str(expiry or ''),filename,'',warning))
+ def add_document(document):
+  for row in document.rows:append(supplier,row['product'],row['pack'],row['base_qty'],row['base_unit'],row['total'],row['unit_cost'],row['expiry'],row['import_warning'])
+  review=sum(bool(row['import_warning']) for row in document.rows)
+  items.warning='; '.join(document.warnings)
+  if document.methods:items.warning+=' Leitura: '+', '.join(sorted(document.methods))+'.'
+  if review:items.warning+=f' {review} item(ns) exigem conferência da extração antes de seleção automática.'
+ if filename.lower().endswith(('.xlsx','.xls')):
+  sheets=read_sheets(raw,filename)
+  remaining=[]
+  for sheet,rows in sheets:
    if norm(sheet)=='TODAS AS COTACOES':
     for original in rows[1:]:
      row=(list(original)+[None]*10)[:10]
      append(row[0] or supplier,row[1],row[2],row[3],row[4],row[5],row[7],row[8])
-   else:
-    for index,header in enumerate(rows):
-     labels=[norm(value) for value in header]
-     if any('PRODUTO' in value or 'DESCRICAO' in value for value in labels):
-      def column(keys):return next((j for j,value in enumerate(labels) if any(key in value for key in keys)),None)
-      product=column(['PRODUTO','DESCRICAO']);price=column(['TOTAL','VALOR ITEM']);pack=column(['EMBALAGEM','UNIDADE'])
-      for row in rows[index+1:]:
-       if product is not None and price is not None and row[product] and num(row[price]) is not None:
-        append(supplier,row[product],row[pack] if pack is not None else '',None,'',row[price],None,'')
-      break
- elif filename.lower().endswith('.pdf'):
-  try:
-   with fitz.open(stream=raw,filetype='pdf') as document:lines='\n'.join(page.get_text() for page in document).splitlines()
-  except Exception:raise HTTPException(400,'Documento PDF inválido ou corrompido')
-  pattern=re.compile(r'^\s*(.+?)\s{2,}(\d+[\.,]\d{2})\s{2,}(\d+[\.,]\d{2})\s*$')
-  for line in lines:
-   found=pattern.match(line)
-   if found and len(found[1])>4:append(supplier,found[1],'',None,'',num(found[3]),None,'')
- else:raise HTTPException(400,'Formato aceito: PDF ou XLSX')
+   else:remaining.append((sheet,rows))
+  if remaining:add_document(spreadsheet_quote_rows(remaining))
+ elif filename.lower().endswith(('.pdf','.jpg','.jpeg','.png')):
+  try:add_document(extract_document(raw,filename))
+  except ValueError as error:raise HTTPException(400,str(error))
+ else:raise HTTPException(400,'Formatos aceitos: PDF, JPG, JPEG, PNG, XLS ou XLSX')
  return items
 
 def save_import(pid,kind,raw,filename,supplier='',import_key=None):
@@ -270,26 +273,26 @@ def save_import(pid,kind,raw,filename,supplier='',import_key=None):
    receipt=c.execute('SELECT * FROM import_receipts WHERE import_key=?',(import_key,)).fetchone()
    if receipt:
     if (receipt['process_id'],receipt['kind'],receipt['digest'],receipt['supplier'])!=(pid,kind,digest,supplier):raise HTTPException(409,'Identificador de importação já utilizado em outro envio. Selecione o arquivo novamente.')
-    return receipt['imported'],json.loads(receipt['vendors']),True
+    return receipt['imported'],json.loads(receipt['vendors']),True,getattr(rows,'warning','')
   for row in rows:
    if kind=='needs':
     c.execute('INSERT INTO needs(process_id,code,name,qty,unit,last_cost,previous_supplier,last_pack_qty,last_pack_unit) VALUES (?,?,?,?,?,?,?,?,?)',(pid,*row))
    else:
-    c.execute('INSERT INTO quotes(process_id,supplier,product,pack,base_qty,base_unit,total,unit_cost,expiry,source,quote_date) VALUES (?,?,?,?,?,?,?,?,?,?,?)',(pid,*row))
+    c.execute('INSERT INTO quotes(process_id,supplier,product,pack,base_qty,base_unit,total,unit_cost,expiry,source,quote_date,import_warning) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',(pid,*row))
   if rows:
    action='IMPORTAR_NECESSIDADES' if kind=='needs' else 'IMPORTAR_COTACOES'
    c.execute('INSERT INTO purchase_audit(process_id,action,reason,created) VALUES (?,?,?,?)',(pid,action,f'{filename}: {len(rows)} registros',datetime.now().isoformat(timespec='seconds')))
   vendors=sorted({row[0] for row in rows}) if kind=='quotes' else []
   if import_key:c.execute('INSERT INTO import_receipts VALUES (?,?,?,?,?,?,?)',(import_key,pid,kind,digest,supplier,len(rows),json.dumps(vendors)))
- return len(rows),vendors,False
+ return len(rows),vendors,False,getattr(rows,'warning','')
 
 async def import_file(pid,kind,file,supplier=''):
  filename=file.filename or 'Arquivo sem nome'
  raw=await file.read(MAX_IMPORT_BYTES+1)
  if len(raw)>MAX_IMPORT_BYTES:raise HTTPException(400,'Arquivo excede o limite de 15 MB')
  if not raw:raise HTTPException(400,'Arquivo vazio')
- count,vendors,_=save_import(pid,kind,raw,filename,supplier)
- warning='Extração de PDF é preliminar. Confira os itens e a validade; documentos complexos podem não ser reconhecidos.' if filename.lower().endswith('.pdf') else ''
+ count,vendors,_,extra_warning=save_import(pid,kind,raw,filename,supplier)
+ warning=extra_warning
  if not count:warning='Nenhum registro reconhecido. Confira os cabeçalhos e o layout do arquivo. '+warning
  return {'filename':filename,'imported':count,'suppliers':vendors,'status':'success' if count else 'empty','warning':warning}
 
@@ -309,7 +312,7 @@ async def import_batch(pid,kind,files,suppliers,keys=None):
  if len(suppliers)!=len(files) or (kind=='quotes' and any(not name.strip() for name in suppliers)):
   raise HTTPException(400,'Informe um fornecedor para cada arquivo de cotação')
  if keys is not None and (len(keys)!=len(files) or len(set(keys))!=len(keys) or any(not re.fullmatch(r'[A-Za-z0-9_-]{16,80}',key) for key in keys)):raise HTTPException(400,'Identificadores de importação inválidos')
- results=[];total_bytes=0
+ results=[];total_bytes=0;seen={}
  for index,file in enumerate(files):
   filename=file.filename or 'Arquivo sem nome'
   try:
@@ -318,8 +321,13 @@ async def import_batch(pid,kind,files,suppliers,keys=None):
    if total_bytes>MAX_BATCH_BYTES:raise HTTPException(400,'Lote excede o limite total de 50 MB; envie os arquivos restantes em outro lote')
    if len(raw)>MAX_IMPORT_BYTES:raise HTTPException(400,'Arquivo excede o limite de 15 MB')
    if not raw:raise HTTPException(400,'Arquivo vazio')
-   count,vendors,reused=save_import(pid,kind,raw,filename,suppliers[index],keys[index] if keys else None)
-   warning='Extração PDF preliminar; confira todos os dados e a validade.' if filename.lower().endswith('.pdf') else ''
+   fingerprint=(hashlib.sha256(raw).hexdigest(),norm(suppliers[index]))
+   if fingerprint in seen:
+    results.append({'index':index,'filename':filename,'status':'duplicate','imported':0,'message':'Arquivo idêntico a '+seen[fingerprint]+' neste lote; ignorado para evitar duplicação.'})
+    continue
+   count,vendors,reused,extra_warning=save_import(pid,kind,raw,filename,suppliers[index],keys[index] if keys else None)
+   if count:seen[fingerprint]=filename
+   warning=extra_warning
    if not count:warning='Nenhum registro reconhecido. Confira os cabeçalhos e o layout. '+warning
    results.append({'index':index,'filename':filename,'status':'success' if count else 'empty','imported':0 if reused else count,'previously_imported':count if reused else 0,'already_imported':reused,'suppliers':vendors,'warning':warning})
   except HTTPException as error:
@@ -327,7 +335,7 @@ async def import_batch(pid,kind,files,suppliers,keys=None):
   except Exception:
    # Do not expose parser internals or credentials; the transaction rolled back.
    results.append({'index':index,'filename':filename,'status':'error','imported':0,'message':'Não foi possível importar este arquivo; nenhum registro dele foi gravado. Confira o formato e tente novamente.'})
- return {'results':results,'imported':sum(row['imported'] for row in results),'successful':sum(row['status']=='success' for row in results),'failed':sum(row['status']=='error' for row in results),'empty':sum(row['status']=='empty' for row in results)}
+ return {'results':results,'imported':sum(row['imported'] for row in results),'successful':sum(row['status']=='success' for row in results),'failed':sum(row['status']=='error' for row in results),'duplicates':sum(row['status']=='duplicate' for row in results),'empty':sum(row['status']=='empty' for row in results)}
 
 @app.post('/api/import/needs/{pid}')
 async def batch_needs(pid:int,files:list[UploadFile]=File(...),keys:list[str]|None=Form(None)):
@@ -353,7 +361,7 @@ def unchoose(need_id:int=Form(...)):
 
 def draft_rows(pid):
  with db() as c:
-  return [dict(r) for r in c.execute("""SELECT n.id AS need_id,n.code,n.name,n.qty,n.unit,n.last_cost,n.last_pack_qty,n.last_pack_unit,q.id AS quote_id,q.supplier,q.product,q.pack,q.base_unit,q.base_qty,q.total,q.unit_cost,q.expiry,ch.reason,ch.changed
+  return [dict(r) for r in c.execute("""SELECT n.id AS need_id,n.code,n.name,n.qty,n.unit,n.last_cost,n.last_pack_qty,n.last_pack_unit,q.id AS quote_id,q.supplier,q.product,q.pack,q.base_unit,q.base_qty,q.total,q.unit_cost,q.expiry,q.import_warning,ch.reason,ch.changed
   FROM choices ch JOIN needs n ON n.id=ch.need_id JOIN quotes q ON q.id=ch.quote_id WHERE n.process_id=? ORDER BY q.supplier,n.name""",(pid,))]
 
 def prepare_draft(pid):
@@ -497,16 +505,19 @@ def set_last_package(need_id:int,quantity:float=Form(...,gt=0),package_unit:str=
  return {'ok':True}
 
 @app.post('/api/quotes/{quote_id}/details')
-def set_quote_details(quote_id:int,quantity:float=Form(...,gt=0),package_unit:str=Form(...),price:float=Form(...,ge=0),expiry:str=Form(...)):
+def set_quote_details(quote_id:int,quantity:float=Form(...,gt=0),package_unit:str=Form(...),price:float=Form(...,ge=0),expiry:str=Form(...),product:str=Form(''),reviewed:bool=Form(False)):
  if not all(math.isfinite(v) for v in [quantity,price]):raise HTTPException(400,'Quantidade ou preço inválido')
  parsed=parse_date(expiry)
  if parsed is None:raise HTTPException(400,'Informe uma validade válida')
  with db() as c:
   q=c.execute('SELECT * FROM quotes WHERE id=?',(quote_id,)).fetchone()
   if not q:raise HTTPException(404,'Cotação não encontrada')
-  if not unit(package_unit,q['product'])[0]:raise HTTPException(400,'Informe g, kg, mg ou milheiro; unidades de cápsulas também são aceitas')
-  c.execute('UPDATE quotes SET base_qty=?,base_unit=?,unit_cost=?,total=?,pack=?,expiry=? WHERE id=?',(quantity,package_unit,price,round(quantity*price,2),f'{quantity} {package_unit}',parsed.isoformat(),quote_id))
-  c.execute('INSERT INTO purchase_audit(process_id,quote_id,action,reason,created) VALUES (?,?,?,?,?)',(q['process_id'],quote_id,'DADOS_COTACAO',f'Embalagem {quantity} {package_unit}; validade {parsed.isoformat()}; preço/base {price}',datetime.now().isoformat(timespec='seconds')))
+  if q['import_warning'] and not reviewed:raise HTTPException(409,'Confirme a revisão da descrição, embalagem, preço, impostos e validade antes de salvar')
+  corrected_product=product.strip() or q['product']
+  if norm(corrected_product)!=norm(q['product']):c.execute('DELETE FROM matches WHERE quote_id=?',(quote_id,))
+  if not unit(package_unit,corrected_product)[0]:raise HTTPException(400,'Informe g, kg, mg ou milheiro; unidades de cápsulas também são aceitas')
+  c.execute('UPDATE quotes SET base_qty=?,base_unit=?,unit_cost=?,total=?,pack=?,expiry=?,product=?,import_warning=NULL WHERE id=?',(quantity,package_unit,price,round(quantity*price,2),f'{quantity} {package_unit}',parsed.isoformat(),corrected_product,quote_id))
+  c.execute('INSERT INTO purchase_audit(process_id,quote_id,action,reason,created) VALUES (?,?,?,?,?)',(q['process_id'],quote_id,'DADOS_COTACAO',f'{corrected_product}: embalagem {quantity} {package_unit}; validade {parsed.isoformat()}; preço/base {price}',datetime.now().isoformat(timespec='seconds')))
  return {'ok':True}
 
 @app.get('/api/suppliers/{pid}')

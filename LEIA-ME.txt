@@ -12,7 +12,7 @@ SONIFARMA — INTELIGÊNCIA DE COMPRAS V1
 LIMITAÇÕES IMPORTANTES DA V1:
 - A base de cotações pré-carregada usa a planilha comparativa anterior e requer conferência das extrações.
 - Importação PDF é conservadora e depende do layout; arquivos complexos podem importar zero itens.
-- Ainda não há reconhecimento confiável de imagem/JPEG nem OCR.
+- A V1.13 adiciona OCR local para imagens e PDFs digitalizados, com revisão obrigatória; confira ATUALIZAR.md.
 - Sugestões por nome não comprovam equivalência farmacotécnica.
 - A seleção não é automática e não há cálculo confiável de economia total sem unidade/quantidade válidas.
 - A partir da V1.7 há login local com troca obrigatória da senha inicial; confira ATUALIZAR.md.
@@ -38,3 +38,5 @@ V1.10: manutenção no padrão do CRM. Depois da primeira migração, use ATUALI
 V1.11: ATUALIZAR_SONIFARMA.bat baixa automaticamente do GitHub e segue o fluxo de manutencao do CRM. Consulte ATUALIZAR.md para o primeiro uso.
 
 V1.12: selecione varios arquivos de uma vez nas importacoes. Confira o fornecedor em cada cotacao e acompanhe o resultado individual na fila.
+
+V1.13: leitura dos layouts de fornecedores em PDF, JPG/JPEG/PNG por OCR e Excel XLS/XLSX. A primeira inicializacao instala dependencias adicionais. Confira os itens sinalizados em Revisar cotacoes importadas.

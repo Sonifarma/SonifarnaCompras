@@ -1,4 +1,4 @@
-# Atualização e controle — V1.12
+# Atualização e controle — V1.13
 
 O Compras agora usa o mesmo modelo de manutenção do SonifarmaCRM: controle com start/stop/restart/status/backup/verify/update, processo identificado por PID e caminho, resposta funcional verificada, ZIP de backup restaurado temporariamente e atualização restrita a uma lista explícita de arquivos de código.
 
@@ -20,7 +20,7 @@ O pacote é baixado automaticamente do GitHub, extraído em uma pasta separada e
     Expand-Archive -LiteralPath "$pasta\projeto.zip" -DestinationPath $pasta
     $origem = Join-Path $pasta 'SonifarnaCompras-main'
 
-    foreach ($arquivo in 'app.py','auth.py','procurement.py','manutencao.py','iniciar_servidor.py','SONIFARMA_CONTROLE.ps1','iniciar.bat','templates\index.html','static\sonifarma-logo.png') {
+    foreach ($arquivo in 'app.py','auth.py','procurement.py','document_import.py','manutencao.py','iniciar_servidor.py','SONIFARMA_CONTROLE.ps1','iniciar.bat','templates\index.html','static\sonifarma-logo.png') {
         if (!(Test-Path -LiteralPath "$origem\$arquivo")) { throw "Pacote incompleto: $arquivo" }
     }
     Get-ChildItem -LiteralPath $origem -Filter '*.ps1' | Unblock-File
@@ -109,7 +109,7 @@ Os rascunhos PDF/XLSX incluem o desembolso em embalagens inteiras, alertas e con
 As transferências são simulações individuais entre cestas, apenas para vínculos aprovados, validade e embalagem atendidas, sem acrescentar excedente de estoque e sem deixar a cesta de origem abaixo do mínimo. Cestas com pendências não são usadas nessas simulações. Condições/fretes não confirmados deixam a diferença com frete pendente. As sugestões não se acumulam nem são aplicadas automaticamente; não representam otimização global de todos os pedidos. Não há envio de pedidos.
 
 
-## Importação de vários arquivos — V1.12
+## Importação de vários arquivos — V1.13
 
 Em Importar documentos, selecione vários arquivos com Ctrl/Shift. Necessidades aceitam planilhas XLSX; cotações aceitam XLSX e PDF no mesmo lote. Limites: 30 arquivos, 15 MB por arquivo e 50 MB de conteúdo processado no lote. Todos são importados no processo selecionado.
 
@@ -119,4 +119,19 @@ Ao concluir, a fila mostra o resultado de cada arquivo: importado, sem registros
 
 Os arquivos concluídos ficam fora de novos envios dessa mesma fila. O botão permite tentar de novo apenas os que falharam; se a conexão cair após a gravação, o identificador mantido na fila evita gravar novamente o arquivo na tentativa seguinte. Não recarregue a página para repetir um envio não confirmado: a fila e seus identificadores são mantidos nesta página. Recarregar e selecionar os arquivos novamente cria uma importação nova; não existe deduplicação global por nome ou por conteúdo. Para corrigir o conteúdo de um arquivo, selecione a versão corrigida sem incluir os arquivos que já foram importados.
 
-A atualização cria apenas uma tabela de recibos de importação para as tentativas da fila, sem apagar dados ou alterar senhas. Os endpoints antigos de arquivo único continuam disponíveis. PDFs mantêm a extração conservadora, sem OCR; cabeçalhos, unidades, embalagens e validades continuam sujeitos às verificações existentes. A importação acrescenta registros; não substitui as compras anteriores.
+A atualização cria apenas uma tabela de recibos de importação para as tentativas da fila, sem apagar dados ou alterar senhas. Os endpoints antigos de arquivo único continuam disponíveis. Até a V1.12 os PDFs usavam extração conservadora sem OCR; a V1.13 amplia esse suporte; cabeçalhos, unidades, embalagens e validades continuam sujeitos às verificações existentes. A importação acrescenta registros; não substitui as compras anteriores.
+
+
+## Leitura de PDF, imagens e Excel — V1.13
+
+Cotações agora aceitam PDF, JPG/JPEG, PNG, XLS e XLSX no mesmo lote. Necessidades aceitam XLS e XLSX no layout documentado. A importação conserva os limites de arquivos/tamanho existentes.
+
+A leitura de PDF foi adaptada aos layouts enviados de Florien, Infinity, Purifarma, Sovita, Galena, I9, PN Farma e Pharmaspecial/Brenntag, incluindo tabelas que continuam em outras páginas. Preços com separadores brasileiros e ingleses são tratados conforme o layout. Quantidade cotada e embalagem não são confundidas: uma cotação de 30 milheiros em embalagens de 5 milheiros é registrada com embalagem de 5. Quando a cotação não explicita embalagem (como no modelo Galena), a quantidade cotada serve somente de referência e exige conferência.
+
+Imagens e PDFs digitalizados usam OCR local por RapidOCR/ONNX. Os modelos acompanham a dependência Python; não é necessário instalar Tesseract nem enviar documentos a um serviço externo. A primeira atualização instalará as dependências adicionais e poderá levar alguns minutos. Imagens precisam estar nítidas, orientadas corretamente e conter a tabela completa. Há limite de 30 megapixels por imagem, 50 páginas por PDF e 10 páginas com OCR por arquivo; divida arquivos maiores. OCR pode omitir linhas ou ler incorretamente descrições, números e datas. Nem todo layout é reconhecido.
+
+Todo item lido por OCR fica sinalizado e bloqueado para seleção automática. Valores antes de IPI/ST, divergências de totais e embalagens ambíguas também ficam sinalizados. Use **Revisar cotações importadas**, busque por fornecedor/arquivo, abra **Conferir / corrigir**, confira descrição, embalagem, unidade do preço, impostos e validade no original e marque a confirmação antes de salvar. A correção é auditada. Se a descrição mudar, vínculos de equivalência anteriores dessa cotação são retirados para nova conferência; escolhas já feitas são preservadas e devem ser revistas. Validade ausente não é inventada. Volume não é convertido em massa sem informação de densidade.
+
+Arquivos de conteúdo idêntico e mesmo fornecedor no mesmo lote são ignorados após a primeira importação bem-sucedida, mesmo que tenham nomes diferentes. Fornecedores distintos podem usar arquivos iguais. Isso não é deduplicação global de todo o banco: reimportar manualmente em outro lote ainda acrescenta itens, conforme a versão anterior.
+
+Na validação isolada com os arquivos enviados, foram reconhecidos 383 itens de nove PDFs diferentes; o décimo PDF era uma cópia idêntica do I9 e foi ignorado no lote. Nenhum PDF, planilha comercial, banco ou informação de cliente foi incluído no GitHub. Testes automatizados usam documentos sintéticos. Também foram conferidos JPG por OCR, PDF digitalizado, XLS e o fluxo de revisão no navegador. Essa validação não substitui a conferência comercial e farmacotécnica pelo comprador.

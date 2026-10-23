@@ -42,7 +42,7 @@ function Reset-Events {
     $global:FailDownload=$false; $global:FailUpdate=$false; $global:FailStart=$false
 }
 try {
-    foreach ($Name in 'app.py','auth.py','procurement.py','manutencao.py','iniciar_servidor.py','iniciar.bat','templates/index.html','static/sonifarma-logo.png') {
+    foreach ($Name in 'app.py','auth.py','procurement.py','document_import.py','manutencao.py','iniciar_servidor.py','iniciar.bat','templates/index.html','static/sonifarma-logo.png') {
         $Path = Join-Path $PackageRoot $Name
         $null = New-Item -ItemType Directory -Path (Split-Path -Parent $Path) -Force
         'fixture' | Set-Content -LiteralPath $Path

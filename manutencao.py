@@ -15,7 +15,7 @@ import zipfile
 
 DATABASE = 'compras.sqlite3'
 CODE_FILES = (
-    'app.py', 'auth.py', 'procurement.py', 'iniciar_servidor.py', 'manutencao.py',
+    'app.py', 'auth.py', 'procurement.py', 'document_import.py', 'iniciar_servidor.py', 'manutencao.py',
     'atualizar.py', 'SONIFARMA_CONTROLE.ps1', 'atualizar-github.ps1',
     'iniciar.bat', 'START_SONIFARMA.bat', 'STOP_SONIFARMA.bat',
     'RESTART_SONIFARMA.bat', 'STATUS_SONIFARMA.bat', 'ATUALIZAR_SONIFARMA.bat',
@@ -24,10 +24,10 @@ CODE_FILES = (
     'templates/index.html', 'templates/login.html', 'static/app.js',
     'static/auth.js', 'static/style.css', 'static/sonifarma-logo.png',
     'tests/test_workflow.py', 'tests/test_update.py', 'tests/test_procurement.py',
-    'tests/test_rules_api.py', 'tests/test_migration.py', 'tests/test_maintenance.py', 'tests/test_import_batch.py',
+    'tests/test_rules_api.py', 'tests/test_migration.py', 'tests/test_maintenance.py', 'tests/test_import_batch.py', 'tests/test_documents.py', 'tests/test_document_api.py',
     'tests/test_controle.ps1', 'tests/test_atualizador.ps1',
 )
-REQUIRED_FILES = ('app.py', 'auth.py', 'procurement.py', 'iniciar_servidor.py',
+REQUIRED_FILES = ('app.py', 'auth.py', 'procurement.py', 'document_import.py', 'iniciar_servidor.py',
                   'manutencao.py', 'atualizar.py', 'SONIFARMA_CONTROLE.ps1',
                   'templates/index.html', 'templates/login.html', 'static/app.js',
                   'static/auth.js', 'static/style.css', 'requirements.txt')

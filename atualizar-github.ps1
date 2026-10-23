@@ -23,7 +23,7 @@ if ($Pastas.Count -ne 1 -or $Pastas[0].Name -ne 'SonifarnaCompras-main') {
     throw 'Estrutura do ZIP invalida: esperado SonifarnaCompras-main.'
 }
 $Origem = $Pastas[0].FullName
-foreach ($Arquivo in 'app.py','auth.py','procurement.py','manutencao.py','iniciar_servidor.py','SONIFARMA_CONTROLE.ps1','iniciar.bat','templates\index.html','static\sonifarma-logo.png') {
+foreach ($Arquivo in 'app.py','auth.py','procurement.py','document_import.py','manutencao.py','iniciar_servidor.py','SONIFARMA_CONTROLE.ps1','iniciar.bat','templates\index.html','static\sonifarma-logo.png') {
     if (!(Test-Path -LiteralPath (Join-Path $Origem $Arquivo))) { throw "Pacote incompleto: $Arquivo" }
 }
 Get-ChildItem -LiteralPath $Origem -Filter '*.ps1' | Unblock-File

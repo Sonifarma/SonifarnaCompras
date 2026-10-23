@@ -3,7 +3,7 @@ setlocal
 cd /d "%~dp0"
 set "SONIFARMA_PY_EXE=py"
 if exist ".venv\Scripts\python.exe" set "SONIFARMA_PY_EXE=%~dp0.venv\Scripts\python.exe"
-"%SONIFARMA_PY_EXE%" -c "import fastapi, uvicorn, multipart, openpyxl, fitz, reportlab" >nul 2>&1
+"%SONIFARMA_PY_EXE%" -c "import fastapi, uvicorn, multipart, openpyxl, fitz, reportlab, xlrd, rapidocr_onnxruntime" >nul 2>&1
 if errorlevel 1 "%SONIFARMA_PY_EXE%" -m pip install -r requirements.txt
 if errorlevel 1 (
  echo ERRO: Nao foi possivel instalar as dependencias.
